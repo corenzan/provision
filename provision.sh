@@ -133,6 +133,9 @@ $username
 $password
 EOF
 
+# Do not ask for password when sudoing.
+sed -i '/^%sudo/c\%sudo\tALL=(ALL:ALL) NOPASSWD:ALL' /etc/sudoers
+
 # Setup RSA key for secure SSH authorization.
 read -e -p "$username's public key: " public_key
 mkdir -p /home/$username/.ssh
