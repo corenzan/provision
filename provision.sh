@@ -11,9 +11,9 @@ if ! [ type apt-get >/dev/null 2>&1 ]; then
 fi
 
 cat <<EOF
-  ____                 _     _
- |  _ \ _ __ _____   _(_)___(_) ___  _ __
- | |_) | '__/ _ \ \ / / / __| |/ _ \| '_ \
+  ____                 _     _             
+ |  _ \ _ __ _____   _(_)___(_) ___  _ __  
+ | |_) | '__/ _ \ \ / / / __| |/ _ \| '_ \ 
  |  __/| | | (_) \ V /| \__ \ | (_) | | | |
  |_|   |_|  \___/ \_/ |_|___/_|\___/|_| |_|
 
@@ -70,13 +70,13 @@ update-locale LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
 locale-gen en_US.UTF-8
 
 # Disable IPV6.
-# cat >> /etc/sysctl.conf <<EOF
-# net.ipv6.conf.all.disable_ipv6 = 1
-# net.ipv6.conf.default.disable_ipv6 = 1
-# net.ipv6.conf.lo.disable_ipv6 = 1
-# EOF
-# sysctl -p
-# cat /proc/sys/net/ipv6/conf/all/disable_ipv6
+cat >> /etc/sysctl.conf <<EOF
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+net.ipv6.conf.lo.disable_ipv6 = 1
+EOF
+sysctl -p
+cat /proc/sys/net/ipv6/conf/all/disable_ipv6
 
 # Clear firewall rules.
 iptables -F
@@ -175,6 +175,6 @@ fallocate -l $[total_memory/2]KB /swapfile
 chmod 600 /swapfile
 mkswap /swapfile
 swapon /swapfile
-sysctl vm.swappiness=10
 echo '/swapfile none swap sw 0 0' >> /etc/fstab
-echo vm.swappiness=10 >> /etc/sysctl.conf
+echo 'vm.swappiness = 10' >> /etc/sysctl.conf
+sysctl -p
