@@ -133,11 +133,13 @@ $password
 EOF
 
 # Create an administrator account.
-username="arthur"
+read -p "Administrator username (arthur): " username
+username=${username:-arthur}
 password=$(random)
 useradd -d /home/$username -m -s /bin/bash $username
 chpasswd <<< "$username:$password"
 usermod -aG sudo $username
+usermod -aG docker $username
 cat <<EOF
 $username
 $password
