@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-if [ $(id -u) != 0 ]; then
+if test $(id -u) -ne 0; then
     echo Try sudo $0. >&2
     exit 1
 fi
