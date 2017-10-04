@@ -109,6 +109,19 @@ iptables -A INPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
 # Block any other input.
 iptables -A INPUT -j DROP
 
+# Setup common software.
+apt-get install -y build-essential git fail2ban newrelic-sysmond unattended-upgrades
+read -e -p "New Relic license key: " new_relic_key
+nrsysmond-config --set license_key=$new_relic_key
+/etc/init.d/newrelic-sysmond start
+
+# Setup Dokku.
+DOKKU_TAG=v0.10.3
+curl -s https://raw.githubusercontent.com/dokku/dokku/v0.10.3/bootstrap.sh | bash
+
+# Only save firewall configuration after installing fail2ban and Docker.
+iptables-save > /etc/iptables.conf
+
 # Load firewall settings when network device is up.
 cat > /etc/network/if-up.d/iptables <<EOF
 #!/usr/bin/env bash
@@ -156,15 +169,6 @@ MaxAuthTries 2
 MaxSessions 2
 EOF
 service ssh restart
-
-# Setup common software.
-apt-get install -y build-essential git fail2ban newrelic-sysmond unattended-upgrades
-read -e -p "New Relic license key: " new_relic_key
-nrsysmond-config --set license_key=$new_relic_key
-/etc/init.d/newrelic-sysmond start
-
-# Save firewall configuration after installing fail2ban.
-iptables-save > /etc/iptables.conf
 
 # Setup unattended security upgrades.
 cat > /etc/apt/apt.conf.d/10periodic <<EOF
