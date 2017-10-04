@@ -50,10 +50,6 @@ random() {
 log_file=provision-$(date +%s).log
 exec > >(tee $log_file) 2>&1
 
-# Add New Relic repository to the source list.
-echo "deb http://apt.newrelic.com/debian/ newrelic non-free" >> /etc/apt/sources.list.d/newrelic.list
-curl -fsSL https://download.newrelic.com/548C16BF.gpg | apt-key add -
-
 # Add Docker repository to the source list.
 echo "deb [arch=amd64] https://download.docker.com/linux/ubuntu zesty stable" >> /etc/apt/sources.list.d/docker.list
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
@@ -110,10 +106,7 @@ iptables -A INPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
 iptables -A INPUT -j DROP
 
 # Setup common software.
-apt-get install -y build-essential git fail2ban newrelic-sysmond unattended-upgrades
-read -e -p "New Relic license key: " new_relic_key
-nrsysmond-config --set license_key=$new_relic_key
-/etc/init.d/newrelic-sysmond start
+apt-get install -y build-essential git fail2ban unattended-upgrades
 
 # Setup Dokku.
 DOKKU_TAG=v0.10.5
