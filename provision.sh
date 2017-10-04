@@ -62,6 +62,7 @@ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 apt-get update
 apt-get upgrade -y
 apt-get autoremove -y
+apt-get clean
 
 # Setup encoding.
 export LANGUAGE=en_US.UTF-8
