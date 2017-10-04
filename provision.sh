@@ -20,16 +20,16 @@ cat <<EOF
 Please note that this script will:
 
     - Reset root's password.
-    - Upgrade all installed packages.
-    - Install third-party software.
-    - Block all external communication except on ports 822, 80, and 443.
+    - Create a new administrator user and setup SSH in an alternative port (822).
+    - Upgrade all installed packages and install third-party software.
+    - Block all incoming traffic except on ports 822 (for SSH), 80, and 443.
     - Setup swap space with half the available memory.
-    - Output secrets in plain text.
 
-Also, you should have at hand:
+You should have at hand:
 
     - Your RSA public key.
-    - Your New Relic license key.
+
+Also please note that it'll **output secrets in plain text**.
 
 EOF
 read -rsp "Press ENTER to continue or CTRL-C to abort..." any
