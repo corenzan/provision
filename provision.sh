@@ -58,7 +58,6 @@ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 apt-get update
 apt-get upgrade -y
 apt-get autoremove -y
-apt-get clean
 
 # Setup encoding.
 export LANGUAGE=en_US.UTF-8
@@ -111,6 +110,9 @@ apt-get install -y build-essential apt-transport-https ca-certificates curl soft
 # Setup Dokku.
 DOKKU_TAG=v0.10.5
 curl -s https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh | bash
+
+# Clean downloaded packages.
+apt-get clean
 
 # Only save firewall configuration after installing fail2ban and Docker.
 iptables-save > /etc/iptables.conf
