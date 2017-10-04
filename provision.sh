@@ -106,7 +106,7 @@ iptables -A INPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
 iptables -A INPUT -j DROP
 
 # Setup common software.
-apt-get install -y build-essential git fail2ban unattended-upgrades
+apt-get install -y build-essential apt-transport-https ca-certificates curl software-properties-common git fail2ban unattended-upgrades docker-ce
 
 # Setup Dokku.
 DOKKU_TAG=v0.10.5
