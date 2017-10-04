@@ -71,6 +71,7 @@ update-locale LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
 locale-gen en_US.UTF-8
 
 # Disable IPV6.
+# https://medium.com/@jonasotten/docker-on-digitalocean-with-a-public-ipv6-address-for-each-container-e908c73dbee6
 cat >> /etc/sysctl.conf <<EOF
 net.ipv6.conf.all.disable_ipv6 = 1
 net.ipv6.conf.default.disable_ipv6 = 1
