@@ -40,8 +40,8 @@ set -uex
 # Make it non interactive.
 DEBIAN_FRONTEND=noninteractive
 
-# Generate a secret.
-secret() {
+# Generate a random string.
+random() {
     local LC_CTYPE=C
     cat /dev/urandom | tr -dc A-Za-z0-9 | head -c ${1:-64}
 }
@@ -115,7 +115,7 @@ EOF
 chmod +x /etc/network/if-up.d/iptables
 
 # Change root's password.
-password=$(secret)
+password=$(random)
 chpasswd <<< "root:$password"
 cat <<EOF
 root
@@ -124,7 +124,7 @@ EOF
 
 # Create an administrator account.
 username="arthur"
-password=$(secret)
+password=$(random)
 useradd -d /home/$username -m -s /bin/bash $username
 chpasswd <<< "$username:$password"
 usermod -aG sudo $username
