@@ -178,7 +178,7 @@ APT::Periodic::AutocleanInterval "7";
 APT::Periodic::Unattended-Upgrade "1";
 EOF
 
-# Setup swap space.
+# Setup swap space with half the memory available.
 total_memory=$(free -m | awk '/^Mem:/{print $2}')
 fallocate -l $[total_memory/2]KB /swapfile
 chmod 600 /swapfile
