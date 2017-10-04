@@ -6,7 +6,7 @@ if test $(id -u) -ne 0; then
 fi
 
 if ! type apt-get >/dev/null 2>&1; then
-    echo This script depends on aptitude. >&2
+    echo Aptitude (apt-get) could not be found. >&2
     exit 1
 fi
 
