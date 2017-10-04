@@ -163,7 +163,7 @@ Port 822
 LoginGraceTime 20
 PermitRootLogin no
 PasswordAuthentication no
-AllowUsers $username
+AllowUsers $username dokku
 DebianBanner no
 MaxAuthTries 2
 MaxSessions 2
