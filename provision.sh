@@ -55,7 +55,7 @@ echo "deb http://apt.newrelic.com/debian/ newrelic non-free" >> /etc/apt/sources
 curl -fsSL https://download.newrelic.com/548C16BF.gpg | apt-key add -
 
 # Add Docker repository to the source list.
-echo "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable" >> /etc/apt/sources.list.d/docker.list
+echo "deb [arch=amd64] https://download.docker.com/linux/ubuntu zesty stable" >> /etc/apt/sources.list.d/docker.list
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 
 # Refresh repositories and upgrade packages.
