@@ -116,8 +116,8 @@ nrsysmond-config --set license_key=$new_relic_key
 /etc/init.d/newrelic-sysmond start
 
 # Setup Dokku.
-DOKKU_TAG=v0.10.3
-curl -s https://raw.githubusercontent.com/dokku/dokku/v0.10.3/bootstrap.sh | bash
+DOKKU_TAG=v0.10.5
+curl -s https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh | bash
 
 # Only save firewall configuration after installing fail2ban and Docker.
 iptables-save > /etc/iptables.conf
