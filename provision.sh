@@ -35,7 +35,10 @@ EOF
 read -rsp "Press ENTER to continue or CTRL-C to abort..." any
 
 # Halt on error and undeclared variables.
-set -uex
+set -ue
+
+# Enable debug with --debug.
+test "$1" = "--debug" && set -x
 
 # Make it non interactive.
 DEBIAN_FRONTEND=noninteractive
