@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
 if test $(id -u) -ne 0; then
-    echo Try sudo $0. >&2
+    echo "Try sudo $0." >&2
     exit 1
 fi
 
 if ! type apt-get >/dev/null 2>&1; then
-    echo Aptitude (apt-get) could not be found. >&2
+    echo "Aptitude (apt-get) could not be found." >&2
     exit 1
 fi
 
