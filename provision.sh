@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-if test "$0" != "provision.sh"; then
+if test "$(basename "$0")" != "provision.sh"; then
     echo "Don't run this script directly from input. You have to save it to disk as 'provision.sh'."
     exit 1
 fi
