@@ -10,7 +10,7 @@ if ! type apt-get >/dev/null 2>&1; then
     exit 1
 fi
 
-cat <<EOF
+printf "
   ____                 _     _
  |  _ \\ _ __ _____   _(_)___(_) ___  _ __
  | |_) | '__/ _ \\ \\ / / / __| |/ _ \\| '_ \\
@@ -29,9 +29,9 @@ You should have at hand:
 
     - Your RSA public key.
 
-Also please note that it'll **output secrets in plain text**.
+Also be advised that it'll \e[7moutput secrets in plain text\e[0m.
 
-EOF
+"
 read -rsp "Press ENTER to continue or CTRL-C to abort..." any
 
 # Enable debug with --debug.
