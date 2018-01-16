@@ -37,7 +37,9 @@ You should have at hand:
 Also be advised that it'll \e[7moutput secrets in plain text\e[0m.
 
 "
-read -rsp "Press ENTER to continue or CTRL-C to abort..." any
+
+# Confirm before continueing.
+read -rsp "Press ENTER to continue or CTRL-C to abort..." _
 
 # Enable debug with --debug.
 test "$1" = "--debug" && set -x
