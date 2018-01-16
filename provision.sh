@@ -105,7 +105,7 @@ iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 # Allow TCP connections using ports for HTTP, HTTPS and SSH.
 acceptable_ports="822 80 443"
 for port in $acceptable_ports; do
-  iptables -A INPUT -p tcp --dport $port -j ACCEPT;
+    iptables -A INPUT -p tcp --dport $port -j ACCEPT;
 done
 
 # Allow regular pings.
