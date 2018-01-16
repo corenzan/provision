@@ -34,11 +34,11 @@ Also please note that it'll **output secrets in plain text**.
 EOF
 read -rsp "Press ENTER to continue or CTRL-C to abort..." any
 
-# Halt on error and undeclared variables.
-set -ue
-
 # Enable debug with --debug.
 test "$1" = "--debug" && set -x
+
+# Halt on error and undeclared variables.
+set -ue
 
 # Make it non interactive.
 DEBIAN_FRONTEND=noninteractive
