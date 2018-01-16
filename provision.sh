@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+if test "$0" != "provision.sh"; then
+    echo "Don't run this script directly from input. You have to save it to disk as 'provision.sh'."
+    exit 1
+fi
+
 if test $(id -u) -ne 0; then
     echo "Try sudo $0." >&2
     exit 1
