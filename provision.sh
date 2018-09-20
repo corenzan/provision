@@ -42,8 +42,8 @@ read -rsp "🚦 Press ENTER to continue or CTRL-C to abort..." _
 # Enable debug with --debug
 test "$1" = "--debug" && set -x
 
-set -ue
 # Halt on error or undeclared variables
+set -ueo pipefail
 
 # Flag it as non interactive
 DEBIAN_FRONTEND=noninteractive
