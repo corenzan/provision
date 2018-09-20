@@ -16,10 +16,14 @@ if test $(id -u) -ne 0; then
 	exit 1
 fi
 
-if ! type apt-get >/dev/null 2>&1; then
-    echo "Aptitude (apt-get) could not be found. This script requires aptitude and has only be tested in Debian or its derived systems." >&2
-    exit 1
-fi
+# Test for the presence of required software
+dependency=(apt apt-key curl iptables)
+for dep in $dependency; do
+	if ! type $dep >/dev/null 2>&1; then
+		echo "🚫 '$dep' could not be found, which is a hard dependency along with: $dependency." >&2
+		exit 1
+	fi
+done
 
 printf "
   ____                 _     _
