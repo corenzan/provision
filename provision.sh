@@ -61,10 +61,9 @@ set -ueo pipefail
 # Flag it as non interactive
 DEBIAN_FRONTEND=noninteractive
 
-
-echo "deb [arch=amd64] https://download.docker.com/linux/ubuntu zesty stable" >> /etc/apt/sources.list.d/docker.list
 # Add Docker repository to the source list
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+echo "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" >> /etc/apt/sources.list.d/docker.list
 
 # Refresh repositories and upgrade packages
 apt update
