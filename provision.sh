@@ -2,8 +2,8 @@
 
 
 if test $(id -u) -ne 0; then
-    echo "Try sudo $0." >&2
-    exit 1
+	echo "🚫 Try again with root or sudo." >&2
+	exit 1
 fi
 
 if ! type apt-get >/dev/null 2>&1; then
@@ -18,24 +18,25 @@ printf "
  |  __/| | | (_) \\ V /| \\__ \\ | (_) | | | |
  |_|   |_|  \\___/ \\_/ |_|___/_|\\___/|_| |_|
 
-Please note that this script will:
+⚠ Please note that this script will:
 
-    - Reset root's password.
-    - Create a new administrator user and setup SSH in an alternative port (822).
-    - Upgrade all installed packages and install third-party software.
-    - Block all incoming traffic except on ports 822 (for SSH), 80, and 443.
-    - Setup swap space with half the available memory.
+	- Reset root's password.
+	- Create a new administrator user and setup SSH in an alternative port (822).
+	- Upgrade all installed packages and install third-party software.
+	- Block all incoming traffic except on ports 822 (for SSH), 80, and 443.
+	- Setup swap space with half the available memory.
+	- It'll \e[7moutput secrets in plain text\e[0m.
 
-You should have at hand:
+🗒 You should have at hand:
 
-    - Your RSA public key.
+	- Your RSA public key.
 
-Also be advised that it'll \e[7moutput secrets in plain text\e[0m.
+🕵 Also you can re-execute this script with --debug to have each step printed on screen.
 
 "
 
 # Confirm before continueing.
-read -rsp "Press ENTER to continue or CTRL-C to abort..." _
+read -rsp "🚦 Press ENTER to continue or CTRL-C to abort..." _
 
 # Enable debug with --debug.
 test "$1" = "--debug" && set -x
@@ -133,29 +134,23 @@ chmod +x /etc/network/if-up.d/iptables
 # Change root's password.
 password=$(random)
 chpasswd <<< "root:$password"
-cat <<EOF
-root
-$password
-EOF
+echo "🔒 root:$password"
 
 # Create an administrator account.
-read -p "Administrator username (arthur): " username
+read -p "👉 Administrator username (arthur): " username
 username=${username:-arthur}
 password=$(random)
 useradd -d /home/$username -m -s /bin/bash $username
 chpasswd <<< "$username:$password"
 usermod -aG sudo $username
 usermod -aG docker $username
-cat <<EOF
-$username
-$password
-EOF
+echo "🔒 $username:$password"
 
 # Do not ask for password when sudoing.
 sed -i '/^%sudo/c\%sudo\tALL=(ALL:ALL) NOPASSWD:ALL' /etc/sudoers
 
 # Setup RSA key for secure SSH authorization.
-read -e -p "$username's public key: " public_key
+read -e -p "👉 $username's public key: " public_key
 mkdir -p /home/$username/.ssh
 echo "$public_key" >> /home/$username/.ssh/authorized_keys
 chown -R $username:$username /home/$username/.ssh
