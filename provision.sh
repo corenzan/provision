@@ -105,11 +105,11 @@ iptables -P FORWARD ACCEPT
 iptables -A INPUT -i lo -j ACCEPT
 iptables -A OUTPUT -o lo -j ACCEPT
 
-# Docker client/server communication
-iptables -A INPUT -s 127.0.0.1 -p tcp --dport 2375 -j ACCEPT
-
 # Keep established or related connections
 iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+
+# Docker client/server communication
+iptables -A INPUT -s 127.0.0.1 -p tcp --dport 2375 -j ACCEPT
 
 # Allow TCP connections using ports for HTTP, HTTPS and SSH
 acceptable_ports="822 80 443"
