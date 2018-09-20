@@ -124,10 +124,9 @@ iptables -A INPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
 iptables -A INPUT -j DROP
 
 # Setup common software
-apt install -y build-essential apt-transport-https ca-certificates curl software-properties-common git fail2ban unattended-upgrades docker-ce
+apt install -y build-essential apt-transport-https ca-certificates curl software-properties-common git fail2ban unattended-upgrades docker-ce kubeadm kubelet kubectl
 
-
-# Only dump iptables configuration after installing fail2ban and Docker
+# Only dump iptables configuration after installing fail2ban, Docker, and kubernetes
 iptables-save > /etc/iptables.conf
 
 # Clean downloaded packages
