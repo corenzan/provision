@@ -180,3 +180,7 @@ service ssh restart
 
 # Make sure there's no swap (kubernetes doesn't like it)
 swapoff -a
+
+# Ask for a hostname
+read -p "👉 Hostname: " hostname
+hostnamectl set-hostname $hostname
