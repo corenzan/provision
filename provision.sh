@@ -86,13 +86,13 @@ locale-gen en_US.UTF-8
 # Disable IPV6 because we're on Digital Ocean
 # - https://github.com/dokku/dokku/blob/4008919a3c8b1cf440d010f448215d0776938f88/docs/getting-started/install/digitalocean.md
 # - https://twitter.com/ksaitor/status/1021435996230045697
-cat >> /etc/sysctl.conf <<EOF
-net.ipv6.conf.all.disable_ipv6 = 1
-net.ipv6.conf.default.disable_ipv6 = 1
-net.ipv6.conf.lo.disable_ipv6 = 1
-EOF
-sysctl -p
-cat /proc/sys/net/ipv6/conf/all/disable_ipv6
+#cat >> /etc/sysctl.conf <<EOF
+#net.ipv6.conf.all.disable_ipv6 = 1
+#net.ipv6.conf.default.disable_ipv6 = 1
+#net.ipv6.conf.lo.disable_ipv6 = 1
+#EOF
+#sysctl -p
+#cat /proc/sys/net/ipv6/conf/all/disable_ipv6
 
 # Clear firewall rules
 iptables -F
