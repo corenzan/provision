@@ -65,6 +65,13 @@ DEBIAN_FRONTEND=noninteractive
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 echo "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" >> /etc/apt/sources.list.d/docker.list
 
+# Add Kubernetes repository to the source list
+# TODO: As of this edit kubernetes doesn't officially support Ubuntu 18.04
+# "bionic" but the channel for the previous release "xenial" works just fine.
+curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+#echo "deb http://apt.kubernetes.io/ kubernetes-$(lsb_release -cs) main" > /etc/apt/sources.list.d/kubernetes.list
+echo "deb http://apt.kubernetes.io/ kubernetes-xenial main" > /etc/apt/sources.list.d/kubernetes.list
+
 # Refresh repositories and upgrade packages
 apt update
 apt upgrade -y
