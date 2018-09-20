@@ -62,10 +62,10 @@ echo "deb [arch=amd64] https://download.docker.com/linux/ubuntu zesty stable" >>
 # Add Docker repository to the source list
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 
-apt-get update
-apt-get upgrade -y
-apt-get autoremove -y
 # Refresh repositories and upgrade packages
+apt update
+apt upgrade -y
+apt autoremove -y
 
 # Setup environment encoding
 export LANGUAGE=en_US.UTF-8
@@ -112,8 +112,8 @@ iptables -A INPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
 # Block any other input
 iptables -A INPUT -j DROP
 
-apt-get install -y build-essential apt-transport-https ca-certificates curl software-properties-common git fail2ban unattended-upgrades docker-ce
 # Setup common software
+apt install -y build-essential apt-transport-https ca-certificates curl software-properties-common git fail2ban unattended-upgrades docker-ce
 
 # Setup Dokku
 DOKKU_TAG=v0.12.12
