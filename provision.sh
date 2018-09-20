@@ -73,15 +73,15 @@ export LC_ALL=en_US.UTF-8
 update-locale LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
 locale-gen en_US.UTF-8
 
-# Disable IPV6.
-# https://medium.com/@jonasotten/docker-on-digitalocean-with-a-public-ipv6-address-for-each-container-e908c73dbee6
-cat >> /etc/sysctl.conf <<EOF
-net.ipv6.conf.all.disable_ipv6 = 1
-net.ipv6.conf.default.disable_ipv6 = 1
-net.ipv6.conf.lo.disable_ipv6 = 1
-EOF
-sysctl -p
-cat /proc/sys/net/ipv6/conf/all/disable_ipv6
+# Disable IPV6 because we're on Digital Ocean
+# See https://github.com/dokku/dokku/blob/master/docs/getting-started/install/digitalocean.md
+#cat >> /etc/sysctl.conf <<EOF
+#net.ipv6.conf.all.disable_ipv6 = 1
+#net.ipv6.conf.default.disable_ipv6 = 1
+#net.ipv6.conf.lo.disable_ipv6 = 1
+#EOF
+#sysctl -p
+#cat /proc/sys/net/ipv6/conf/all/disable_ipv6
 
 # Clear firewall rules
 iptables -F
