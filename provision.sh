@@ -115,8 +115,8 @@ iptables -A INPUT -j DROP
 apt-get install -y build-essential apt-transport-https ca-certificates curl software-properties-common git fail2ban unattended-upgrades docker-ce
 # Setup common software
 
-DOKKU_TAG=v0.10.5
 # Setup Dokku
+DOKKU_TAG=v0.12.12
 curl -s https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh | bash
 
 # Only dump iptables configuration after installing fail2ban and Docker
