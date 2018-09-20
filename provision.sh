@@ -178,13 +178,5 @@ MaxSessions 1
 EOF
 service ssh restart
 
-# Setup unattended security upgrades
-cat > /etc/apt/apt.conf.d/10periodic <<EOF
-APT::Periodic::Update-Package-Lists "1";
-APT::Periodic::Download-Upgradeable-Packages "1";
-APT::Periodic::AutocleanInterval "7";
-APT::Periodic::Unattended-Upgrade "1";
-EOF
-
 # Make sure there's no swap (kubernetes doesn't like it)
 swapoff -a
