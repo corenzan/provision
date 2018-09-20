@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 
+# Generate a random string
+random() {
+	local LC_CTYPE=C
+	cat /dev/urandom | tr -dc A-Za-z0-9 | head -c ${1:-64}
+}
+
+# Log everything
+log_file=provision-$(date +%s).log
+exec > >(tee $log_file) 2>&1
 
 # Require privilege (a.k.a. sudo)
 if test $(id -u) -ne 0; then
@@ -48,15 +57,6 @@ set -ueo pipefail
 # Flag it as non interactive
 DEBIAN_FRONTEND=noninteractive
 
-# Generate a random string.
-random() {
-    local LC_CTYPE=C
-    cat /dev/urandom | tr -dc A-Za-z0-9 | head -c ${1:-64}
-}
-
-# Log everything.
-log_file=provision-$(date +%s).log
-exec > >(tee $log_file) 2>&1
 
 echo "deb [arch=amd64] https://download.docker.com/linux/ubuntu zesty stable" >> /etc/apt/sources.list.d/docker.list
 # Add Docker repository to the source list
