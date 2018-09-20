@@ -166,9 +166,11 @@ LoginGraceTime 20
 PermitRootLogin no
 PasswordAuthentication no
 AllowUsers $username dokku
+ClientAliveInterval 60
+ClientAliveCountMax 10
 DebianBanner no
-MaxAuthTries 2
-MaxSessions 2
+MaxAuthTries 1
+MaxSessions 1
 EOF
 service ssh restart
 
