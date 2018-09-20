@@ -186,12 +186,5 @@ APT::Periodic::AutocleanInterval "7";
 APT::Periodic::Unattended-Upgrade "1";
 EOF
 
-# Setup swap space with half the memory available
-memory=$(free -m | awk '/^Mem:/{print $2}')
-fallocate -l $((memory/2))KB /swapfile
-chmod 600 /swapfile
-mkswap /swapfile
-swapon /swapfile
-echo '/swapfile none swap sw 0 0' >> /etc/fstab
-echo 'vm.swappiness = 10' >> /etc/sysctl.conf
-sysctl -p
+# Make sure there's no swap (kubernetes doesn't like it)
+swapoff -a
