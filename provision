@@ -1,0 +1,304 @@
+#!/usr/bin/env bash
+
+usage() {
+	cat <<-EOF
+
+		 📚 Available options:
+
+		     -h, --help      Available options.
+		     -x, --debug     Enable debug output.
+		     -l, --log       Change log file name.
+
+	EOF
+}
+
+# Generate a long random alphanumeric string.
+secret() {
+	local LC_CTYPE=C
+	cat /dev/urandom | tr -dc A-Za-z0-9 | head -c ${1:-64}
+}
+
+# Trap EXIT and handle errors gracefully.
+catch() {
+	local status=$?
+	printf "\e[u\e[K ❌ $1\n\n"
+	printf " ❓ Exited with \e[1mcode $status\e[0m. Check the logs in \e[1m$log\e[0m.\n\n"
+	exit $status
+}
+
+# Handle interruptions gracefully.
+abort() {
+	printf " 💔 Abort.\n\n"
+	exit 130
+}
+
+# Announce task execute it and update status.
+run() {
+	trap "catch \"$1\"" EXIT
+	task="$1"
+	printf "\e[s ⏳ $task"
+	$2 >> $log 2>&1
+	printf "\e[u\e[K ✅ $1\n"
+	trap - EXIT
+}
+
+# Prompt and output both question and response to log.
+prompt() {
+	printf " 💬 \e[1m$1\e[0m: "
+	read "${@:2}"
+}
+
+#
+#
+#
+
+# Defaults.
+log="provision-$(date +%s).log"
+debug=false
+
+# Save positional arguments.
+arg=""
+
+# Parse flag options.
+while test $# -gt 0; do
+	case "$1" in
+		-x|--debug)
+			debug=true
+			set -x
+			shift 1
+			;;
+		-l|--log)
+			log="$1"
+			shift 2
+			;;
+		-h|--help)
+			usage
+			exit 0
+			;;
+		--)
+			shift
+			break
+			;;
+		-*|--*=)
+			printf "\n 🚫 Unrecognized option $1.\n\n" >&2
+			exit 1
+			;;
+		*)
+			arg="$arg $1"
+			shift
+			;;
+	esac
+done
+
+# Reset positional arguments.
+eval set -- "$arg"
+
+# Require privilege (a.k.a. sudo).
+if test $(id -u) -ne 0; then
+		printf "\n 🚫 Try again with root or sudo.\n\n" >&2
+		exit 1
+fi
+
+# Test for required software.
+dependency=(apt-get apt-key curl iptables)
+for dep in ${dependency[@]}; do
+	if ! type "$dep" >/dev/null 2>&1; then
+		printf "\n 🚫 \e[1m$dep\e[0m couldn't be found. Make sure you have the all that is required:\n\n" >&2
+		printf "     - %s\n" "${dependency[@]}"
+		printf "\n"
+		exit 1
+	fi
+done
+
+#
+#
+#
+
+_configure_apt_sources() {
+	# Add docker repository to the aptitude sources.
+	curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+	echo "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" >> /etc/apt/sources.list.d/docker.list
+
+	# Add kubernetes repository to the aptitude sources.
+	# TODO: As of this time kubernetes doesn't officially support Ubuntu 18.04
+	# "bionic" but the channel for the previous release "xenial" works just fine.
+	curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+	#echo "deb http://apt.kubernetes.io/ kubernetes-$(lsb_release -cs) main" > /etc/apt/sources.list.d/kubernetes.list
+	echo "deb http://apt.kubernetes.io/ kubernetes-xenial main" > /etc/apt/sources.list.d/kubernetes.list
+}
+
+_update_and_upgrade() {
+	# Refresh repositories and upgrade packages
+	apt-get update
+	apt-get upgrade -y
+	apt-get autoremove -y
+}
+
+_set_encoding() {
+	# Setup environment encoding
+	export LANGUAGE=en_US.UTF-8
+	export LC_ALL=en_US.UTF-8
+	update-locale LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
+	locale-gen en_US.UTF-8
+}
+
+_configure_iptables() {
+	# Clear firewall rules.
+	iptables -F
+	iptables -t nat -F
+	iptables -P INPUT ACCEPT
+	iptables -P OUTPUT ACCEPT
+	iptables -P FORWARD ACCEPT
+
+	# Accept anything from/to loopback interface.
+	iptables -A INPUT -i lo -j ACCEPT
+	iptables -A OUTPUT -o lo -j ACCEPT
+
+	# Keep established or related connections.
+	iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+
+	# Docker client/server communication.
+	iptables -A INPUT -s 127.0.0.1 -p tcp --dport 2375 -j ACCEPT
+
+	# Allow TCP connections using ports for HTTP, HTTPS and SSH.
+	acceptable_ports="822 80 443"
+	for port in $acceptable_ports; do
+			iptables -A INPUT -p tcp --dport $port -j ACCEPT;
+	done
+
+	# Allow regular pings.
+	iptables -A INPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
+
+	# Block any other input.
+	iptables -A INPUT -j DROP
+}
+
+_install_software() {
+	# Setup common software
+	apt-get install -y build-essential apt-transport-https ca-certificates curl software-properties-common git fail2ban unattended-upgrades docker-ce kubeadm kubelet kubectl
+
+	# Clean downloaded packages
+	apt-get clean
+}
+
+_save_iptables_config() {
+	# NOTE: Only dump iptables configuration after
+	# installing fail2ban, docker, and kubernetes.
+	iptables-save > /etc/iptables.conf
+
+	# Load iptables config when network device is up.
+	cat > /etc/network/if-up.d/iptables <<-EOF
+		#!/usr/bin/env bash
+		iptables-restore < /etc/iptables.conf
+	EOF
+	chmod +x /etc/network/if-up.d/iptables
+}
+
+_setup_credentials() {
+	# Reset root password.
+	chpasswd <<< "root:$root_password"
+
+	# Create an administrator account.
+	id -u $administrator || useradd -d /home/$administrator -m -s /bin/bash $administrator
+	chpasswd <<< "$administrator:$administrator_password"
+	usermod -aG sudo $administrator
+	usermod -aG docker $administrator
+
+	# Do not ask for password when sudoing.
+	sed -i '/^%sudo/c\%sudo\tALL=(ALL:ALL) NOPASSWD:ALL' /etc/sudoers
+
+	# Setup RSA key for secure SSH authorization.
+	mkdir -p /home/$administrator/.ssh
+	echo "$public_key" >> /home/$administrator/.ssh/authorized_keys
+	chown -R $administrator:$administrator /home/$administrator/.ssh
+}
+
+_configure_sshd() {
+	# Set some secure defaults for SSH.
+	cat > /etc/ssh/sshd_config <<-EOF
+		Port 822
+		LoginGraceTime 20
+		PermitRootLogin no
+		PasswordAuthentication no
+		AllowUsers $administrator dokku
+		ClientAliveInterval 60
+		ClientAliveCountMax 10
+		DebianBanner no
+		MaxAuthTries 1
+		MaxSessions 1
+	EOF
+	service ssh restart
+}
+
+_configure_hostname() {
+	hostnamectl set-hostname $hostname
+}
+
+#
+#
+#
+
+# Halt on error or undeclared variables.
+set -ue
+
+# Flag it as non interactive.
+DEBIAN_FRONTEND=noninteractive
+
+# Trap interruption.
+trap abort SIGINT SIGTERM SIGKILL
+
+printf "
+
+  ▄▄▄·▄▄▄         ▌ ▐·▪  .▄▄ · ▪         ▐ ▄
+ ▐█ ▄█▀▄ █·▪     ▪█·█▌██ ▐█ ▀. ██ ▪     •█▌▐█
+  ██▀·▐▀▀▄  ▄█▀▄ ▐█▐█•▐█·▄▀▀▀█▄▐█· ▄█▀▄ ▐█▐▐▌
+ ▐█▪·•▐█•█▌▐█▌.▐▌ ███ ▐█▌▐█▄▪▐█▐█▌▐█▌.▐▌██▐█▌
+ .▀   .▀  ▀ ▀█▄▀▪. ▀  ▀▀▀ ▀▀▀▀ ▀▀▀ ▀█▄▀▪▀▀ █▪
+
+ 📢 Please note that this script will:
+
+     - Generate long random passwords for root and administrator's user.
+     - Change SSH configuration and set it on an alternative port (822).
+     - Upgrade all installed packages and install third-party software.
+     - Block all incoming traffic except on ports 822 (for SSH), 80, and 443.
+     - Output secrets in plain text.
+
+ 📌 You should have at hand:
+
+     - Your RSA public key.
+
+ 🚦 Press \e[1mENTER\e[0m to continue or \e[1mCTRL-C\e[0m to abort...
+
+"
+
+# Confirm before continueing.
+read -rs _
+
+# Prepare information.
+root_password="$(secret)"
+administrator_password="$(secret)"
+prompt "Hostname for this machine" hostname
+prompt "Administrator username" administrator
+prompt "$administrator's public key" -s public_key
+printf "\n\n"
+
+# Output secrets.
+printf " 📝 Write it down:
+
+     - root:$root_password
+     - $administrator:$administrator_password
+
+"
+
+run "Adding new repository sources." _configure_apt_sources
+run "Refreshing repositories and upgrading existing software." _update_and_upgrade
+run "Setting environment encoding to UTF-8." _set_encoding
+run "Configuring firewall." _configure_iptables
+run "Installing new software." _install_software
+run "Saving firewall configuration." _save_iptables_config
+run "Creating new user and reseting passwords." _setup_credentials
+run "Configuring SSH." _configure_sshd
+run "Changing hostname." _configure_hostname
+
+# Announce success.
+printf "\n 🎉 \e[1mDone!\e[0m You can check the logs out in \e[1m$log\e[0m.\n\n"
