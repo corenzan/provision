@@ -1,6 +1,4 @@
-# Provision
-
-> Bootstrap server setup.
+<p align="center"><img src="sample.png" height="1007" width="787"></p>
 
 ## Warning
 
