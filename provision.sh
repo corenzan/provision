@@ -43,8 +43,8 @@ if test $(id -u) -ne 0; then
 	exit 1
 fi
 
-# Test for the presence of required software.
-dependency="apt-get apt-key curl iptables sysctl"
+# Test for the presence of expected software.
+dependency="apt-get apt-key curl iptables sysctl service"
 for dep in $dependency; do
 	if ! type $dep >/dev/null 2>&1; then
 		echo "🚫 '$dep' could not be found, which is a hard dependency along with: $dependency." >&2
