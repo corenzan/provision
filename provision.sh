@@ -104,11 +104,11 @@ printf "
 # Confirm before continueing.
 read -rsp "🚦 Press ENTER to continue or CTRL-C to abort..." _
 
-# Enable debug with either --debug or -x.
-test "$debug" = true && set -x 
-
 # Halt on errors and undeclared variables.
 set -ue
+
+# Enable debug with either --debug or -x.
+test "$debug" = true && set -x
 
 # Let debconf know we won't interact.
 export DEBIAN_FRONTEND=noninteractive
