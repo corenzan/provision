@@ -59,23 +59,45 @@ printf "
  |  __/| | | (_) \\ V /| \\__ \\ | (_) | | | |
  |_|   |_|  \\___/ \\_/ |_|___/_|\\___/|_| |_|
 
-⚠ Please note that this script will:
+ ⚠ Please note that this script will:
 
-	- Reset root password.
-	- Create a new user and add your public key.
-	- Reconfigure SSH on an alternative port (822).
-	- Disable IPv6.
-	- Upgrade existing packages and install new software.
-	- Block all incoming traffic except on ports 822 (for SSH), 80, and 443.
-	- Configure automatic unattended upgrades for security patches.
-	- Setup swap space equals to the available memory.
-	- \e[1mOutput secrets in plain text\e[0m.
+    - Reset root password.
+    - Create a new user and authorize your public key.
+    - Reset SSH configuration and use an alternative port (822).
+    - Disable IPv6.
+    - Upgrade existing packages and install new software.
+    - Reset firewall configuration.
+    - Block all incoming traffic except on ports 822 (for SSH), 80, and 443.
+    - Configure automatic unattended upgrades for security patches.
+    - Setup swap space the same size as available memory.
+    - \e[1mOutput secrets in plain text and save to the disk\e[0m.
 
-🗒 You should have at hand:
+ 🗒 Before proceeding though we're gonna need a few things:
 
-	- Your RSA public key.
+"
 
-🕵 Note that you can re-execute this script with --debug flag to have each step printed on screen.
+echo "    - Enter the administrator username:"
+administrator=""
+while test -z "$administrator"; do
+	read -p "      👉 " administrator
+	test -z "$administrator" && echo "      🚫 Administrator username cannot be blank." >&2
+done
+
+echo ""
+echo "    - Paste your public key for SSH authentication:"
+echo "      You can generate a new one using: ssh-keygen -t rsa -b 4096 -C \"me@example.org\""
+public_key=""
+while test -z "$public_key"; do
+	read -e -p "      👉 " public_key
+	test -z "$public_key" && echo "      🚫 $administrator's public key cannot be blank." >&2
+done
+
+printf "
+ ℹ Also remember:
+
+     - You can re-execute this script with --debug flag to have each step printed on the screen.
+     - You can suspend the script's execution at any time with CTRL-Z and resume it with the 'fg' command.
+     - Everything will be logged to './$log'. You can change the file path or name with the --log flag.
 
 "
 
@@ -202,22 +224,19 @@ echo "🔒 root:$password"
 groupadd op
 
 # Create a new administrator user.
-read -p "👉 Administrator username (arthur): " username
-username=${username:-arthur}
 password="$(random)"
-useradd -d /home/$username -m -s /bin/bash $username
-chpasswd <<< "$username:$password"
-usermod -aG sudo,docker,op $username
-echo "🔒 $username:$password"
+useradd -d /home/$administrator -m -s /bin/bash $administrator
+chpasswd <<< "$administrator:$password"
+usermod -aG sudo,super,docker $administrator
+echo "🔒 $administrator:$password"
 
 # Do not ask for password when sudoing.
 sed -i '/^%sudo/c\%sudo\tALL=(ALL:ALL) NOPASSWD:ALL' /etc/sudoers
 
 # Setup RSA key for secure SSH authorization.
-read -e -p "👉 $username's public key: " public_key
-mkdir -p /home/$username/.ssh
-echo "$public_key" >> /home/$username/.ssh/authorized_keys
-chown -R $username:$username /home/$username/.ssh
+mkdir -p /home/$administrator/.ssh
+echo "$public_key" >> /home/$administrator/.ssh/authorized_keys
+chown -R $administrator:$administrator /home/$administrator/.ssh
 
 # Save a copy.
 backup /etc/ssh/sshd_config
