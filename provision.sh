@@ -221,7 +221,7 @@ chpasswd <<< "root:$password"
 echo "🔒 root:$password"
 
 # Create a new SSH group.
-groupadd op
+groupadd super
 
 # Create a new administrator user.
 password="$(random)"
@@ -295,7 +295,7 @@ cat > /etc/ssh/sshd_config <<-EOF
 	# Don't allow .rhosts or /etc/hosts.equiv.
 	HostbasedAuthentication no
 
-	AllowGroups op
+	AllowGroups super
 	ClientAliveCountMax 0
 	ClientAliveInterval 300
 	ListenAddress 0.0.0.0
