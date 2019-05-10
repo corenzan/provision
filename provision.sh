@@ -202,7 +202,7 @@ apt-get install -y build-essential apt-transport-https ca-certificates software-
 DOKKU_TAG=v0.16.0
 curl -fsSL https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh | bash
 
-# Only dump iptables configuration after installing fail2ban and Docker.
+# Only dump iptables configuration after installing all the software.
 iptables-save > /etc/iptables.conf
 
 # Load iptables config when network device is up.
@@ -308,7 +308,7 @@ cat > /etc/ssh/sshd_config <<-EOF
 	Port 822
 EOF
 
-# The Diffie-Hellman algorithm is used by SSH to establish a secure connection. 
+# The Diffie-Hellman algorithm is used by SSH to establish a secure connection.
 # The larger the moduli (key size) the stronger the encryption.
 # Remove all moduli smaller than 3072 bits.
 cp --preserve /etc/ssh/moduli /etc/ssh/moduli.default
@@ -336,10 +336,10 @@ cat > /etc/apt/apt.conf.d/51unattended-upgrades <<-EOF
 	//     0:  no report             (or null string)
 	//     1:  progress report       (actually any string)
 	//     2:  + command outputs     (remove -qq, remove 2>/dev/null, add -d)
-	//     3:  + trace on    APT::Periodic::Verbose "2";    
+	//     3:  + trace on    APT::Periodic::Verbose "2";
 	APT::Periodic::Unattended-Upgrade "0";
 
-	// Automatically upgrade packages from these 
+	// Automatically upgrade packages from these
 	Unattended-Upgrade::Origins-Pattern {
 		"o=Debian,a=stable";
 		"o=Debian,a=stable-updates";
@@ -363,7 +363,7 @@ cat > /etc/apt/apt.conf.d/51unattended-upgrades <<-EOF
 	Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
 EOF
 
-# Setup swap space with half the memory available.
+# Setup swap space with size same as memory available.
 memory=$(free -m | awk '/^Mem:/{print $2}')
 fallocate -l ${memory}MB /swapfile
 chmod 600 /swapfile
@@ -373,4 +373,4 @@ echo '/swapfile none swap sw 0 0' >> /etc/fstab
 echo 'vm.swappiness = 10' >> /etc/sysctl.conf
 sysctl -p
 
-printf "\n🎉 Done!\n\n"
+printf "\n🎉 Done at $(date +'%r')!\n\n"
