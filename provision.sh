@@ -35,7 +35,7 @@ debug=${debug:-false}
 # -
 
 # Log everything.
-exec > >(tee $log) 2>&1
+test "$log" -ne "-" && exec > >(tee $log) 2>&1
 
 # Require privilege, i.e. sudo.
 if test $(id -u) -ne 0; then
