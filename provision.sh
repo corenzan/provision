@@ -199,7 +199,7 @@ EOF
 apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git fail2ban unattended-upgrades docker-ce
 
 # Setup Dokku.
-DOKKU_TAG=v0.14.6
+DOKKU_TAG=v0.16.0
 curl -fsSL https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh | bash
 
 # Only dump iptables configuration after installing fail2ban and Docker.
