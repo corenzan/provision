@@ -253,11 +253,6 @@ cat > /etc/ssh/sshd_config <<-EOF
 
 	# LogLevel VERBOSE logs user's key fingerprint on login. Needed to have a clear audit track of which key was using to log in.
 	LogLevel VERBOSE
-	
-	# Use kernel sandbox mechanisms where possible in unprivileged processes
-	# Systrace on OpenBSD, Seccomp on Linux, seatbelt on MacOSX/Darwin, rlimit elsewhere.
-	# Note: This setting is deprecated in OpenSSH 7.5 (https://www.openssh.com/txt/release-7.5)
-	UsePrivilegeSeparation sandbox
 
 	# Don't let users set environment variables.
 	PermitUserEnvironment no
