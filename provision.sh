@@ -29,6 +29,8 @@ set -- "$argv"
 # Set defaults.
 log=${log:-provision-$(date +"%Y%m%d%H%M%S").log}
 debug=${debug:-false}
+distro="$(lsb_release -is | tr '[A-Z]' '[a-z]')"
+release="$(lsb_release -cs)"
 
 # -
 # -
@@ -114,8 +116,8 @@ test "$debug" = true && set -x
 export DEBIAN_FRONTEND=noninteractive
 
 # Add Docker repository to the source list.
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
-echo "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" >> /etc/apt/sources.list.d/docker.list
+curl -fsSL https://download.docker.com/linux/$distro/gpg | apt-key add -
+echo "deb [arch=amd64] https://download.docker.com/linux/$distro $release stable" >> /etc/apt/sources.list.d/docker.list
 
 # Refresh repositories and upgrade installed packages.
 apt-get update
