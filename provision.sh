@@ -161,8 +161,11 @@ iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 # Allow TCP connections using ports for HTTP, HTTPS and SSH.
 ports="80 443 822"
 for port in $ports; do
-	iptables -A INPUT -p tcp --dport $port -j ACCEPT;
+	iptables -A INPUT -p tcp --dport $port -j ACCEPT
 done
+
+# Whitelist communication to DigitalOcean nameservers.
+iptables -A INPUT -p udp --dport 53 -j ACCEPT
 
 # Allow regular pings.
 iptables -A INPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
