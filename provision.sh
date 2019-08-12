@@ -200,6 +200,9 @@ EOF
 # Setup common software.
 apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git fail2ban unattended-upgrades docker-ce
 
+# Setup DO monitoring agent.
+curl -sSL https://insights.nyc3.cdn.digitaloceanspaces.com/install.sh | bash
+
 # Setup Dokku.
 DOKKU_TAG=v0.17.9
 curl -fsSL https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh | bash
