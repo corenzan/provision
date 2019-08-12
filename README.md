@@ -12,16 +12,18 @@ Provision is a script in Bash to bootstrap the setup of new servers on cloud pro
 
 Here's an overview of what it'll do.
 
-- Reset `root` password.
-- Create a new user and add your public key.
-- Reconfigure SSH on an alternative port (822).
+- Reset root password.
+- Create a new user and authorize your public key.
+- Reset SSH configuration and use an alternative port (822).
 - Disable IPv6.
 - Upgrade existing packages and install new software.
+- Reset firewall configuration.
 - Block all incoming traffic except on ports 822 (for SSH), 80, and 443.
 - Configure automatic unattended upgrades for security patches.
-- Setup swap space equals to the available memory.
+- Setup swap space the same size as available memory.
+- Output secrets in plain text and save to the disk.
 
-Currently it doesn't provide any options or prompts during execution, so **you'll need to edit the script beforehand**.
+Currently it'll only prompt for username and public key. For everything else you'll have to edit the script beforehand.
 
 ## Reference
 
