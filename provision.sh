@@ -317,7 +317,7 @@ cat > /etc/ssh/sshd_config <<-EOF
 
 	AllowGroups remote
 	ClientAliveCountMax 0
-	ClientAliveInterval 300
+	ClientAliveInterval 600
 	ListenAddress 0.0.0.0
 	LoginGraceTime 30
 	MaxAuthTries 2
