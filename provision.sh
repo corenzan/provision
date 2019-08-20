@@ -158,17 +158,17 @@ iptables -A INPUT -s 127.0.0.1 -p tcp --dport 2375 -j ACCEPT
 # Keep established or related connections.
 iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 
-# Allow TCP connections using ports for HTTP, HTTPS and SSH.
-ports="80 443 822"
-for port in $ports; do
-	iptables -A INPUT -p tcp --dport $port -j ACCEPT
-done
-
 # Whitelist communication to DigitalOcean nameservers.
 iptables -A INPUT -p udp --dport 53 -j ACCEPT
 
 # Allow regular pings.
 iptables -A INPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
+
+# Allow incoming TCP traffic for HTTP, HTTPS and SSH.
+allowed_tcp_ports="80 443 822"
+for port in $allowed_tcp_ports; do
+	iptables -A INPUT -p tcp --dport $port -j ACCEPT
+done
 
 # Block any other incoming connections.
 iptables -A INPUT -j DROP
@@ -177,14 +177,14 @@ iptables -A INPUT -j DROP
 iptables -A INPUT -j LOG --log-tcp-options --log-prefix "[iptables] "
 iptables -A FORWARD -j LOG --log-tcp-options --log-prefix "[iptables] "
 
-# Pipe it to its own file.
+# Pipe iptables log to its own file.
 cat > /etc/rsyslog.d/10-iptables.conf <<-EOF
 	:msg, contains, "[iptables] " -/var/log/iptables.log
 	& stop
 EOF
 service rsyslog restart
 
-# Rotate the log so it doesn't fill up the disk.
+# Rotate iptables log so it doesn't fill up the disk.
 cat > /etc/logrotate.d/iptables <<-EOF
 	/var/log/iptables.log
 	{
@@ -213,6 +213,13 @@ curl -fsSL https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh
 # Only dump iptables configuration after installing all the software.
 iptables-save > /etc/iptables.conf
 
+# Load iptables config when network device is up.
+cat > /etc/network/if-up.d/iptables <<-EOF
+	#!/usr/bin/env bash
+	iptables-restore < /etc/iptables.conf
+EOF
+chmod +x /etc/network/if-up.d/iptables
+
 # Write custom Docker configuration.
 # https://docs.docker.com/engine/reference/commandline/dockerd/
 cat > /etc/docker/daemon.json <<-EOF
@@ -226,13 +233,6 @@ cat > /etc/docker/daemon.json <<-EOF
 		"live-restore": true
 	}
 EOF
-
-# Load iptables config when network device is up.
-cat > /etc/network/if-up.d/iptables <<-EOF
-	#!/usr/bin/env bash
-	iptables-restore < /etc/iptables.conf
-EOF
-chmod +x /etc/network/if-up.d/iptables
 
 # Clean downloaded packages.
 apt-get clean
