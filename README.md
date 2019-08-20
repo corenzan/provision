@@ -13,12 +13,12 @@ Provision is a script in Bash to bootstrap the setup of new servers on cloud pro
 Here's an overview of what it'll do.
 
 - Reset root password.
-- Create a new user and authorize your public key.
-- Reset SSH configuration and use an alternative port (822).
-- Disable IPv6.
+- Create a new user, allow passwordless sudo and authorize your public key.
+- Reconfigure SSH and switch to an alternate port (822).
+- Disable IPv6 due to DigitalOcean's issue with Docker.
 - Upgrade existing packages and install new software.
 - Reset firewall configuration.
-- Block all incoming traffic except on ports 822 (for SSH), 80, and 443.
+- Block all incoming traffic except on ports select ports.
 - Configure automatic unattended upgrades for security patches.
 - Setup swap space the same size as available memory.
 - Output secrets in plain text and save to the disk.
