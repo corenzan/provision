@@ -243,13 +243,16 @@ chpasswd <<< "root:$password"
 echo "🔒 root:$password"
 
 # Create a new SSH group.
-groupadd super
+groupadd remote
+
+# Add dokku user to SSH group.
+usermod -aG remote dokku
 
 # Create a new administrator user.
 password="$(random)"
 useradd -d /home/$administrator -m -s /bin/bash $administrator
 chpasswd <<< "$administrator:$password"
-usermod -aG sudo,super,docker $administrator
+usermod -aG sudo,remote,docker $administrator
 echo "🔒 $administrator:$password"
 
 # Do not ask for password when sudoing.
@@ -312,7 +315,7 @@ cat > /etc/ssh/sshd_config <<-EOF
 	# Don't allow .rhosts or /etc/hosts.equiv.
 	HostbasedAuthentication no
 
-	AllowGroups super
+	AllowGroups remote
 	ClientAliveCountMax 0
 	ClientAliveInterval 300
 	ListenAddress 0.0.0.0
