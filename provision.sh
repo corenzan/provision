@@ -213,6 +213,20 @@ curl -fsSL https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh
 # Only dump iptables configuration after installing all the software.
 iptables-save > /etc/iptables.conf
 
+# Write custom Docker configuration.
+# https://docs.docker.com/engine/reference/commandline/dockerd/
+cat > /etc/docker/daemon.json <<-EOF
+	{
+		"storage-driver": "overlay2",
+		"log-driver": "json-file",
+		"log-opts": {
+			"max-size": "10m",    
+			"max-file": "10"
+		},
+		"live-restore": true
+	}
+EOF
+
 # Load iptables config when network device is up.
 cat > /etc/network/if-up.d/iptables <<-EOF
 	#!/usr/bin/env bash
