@@ -393,4 +393,15 @@ echo '/swapfile none swap sw 0 0' >> /etc/fstab
 echo 'vm.swappiness = 10' >> /etc/sysctl.conf
 sysctl -p
 
+hardsysctl(){
+## THANK YOU KLAVER ##
+wget https://raw.githubusercontent.com/klaver/sysctl/master/sysctl.conf
+## Do your Adjustments on sysctl.conf if you need necessary ##
+cp /etc/sysctl.conf /etc/sysctl.conf.backup
+cp  sysctl.conf  /etc/sysctl.conf
+chmod 644 /etc/sysctl.conf
+sysctl -e -p /etc/sysctl.conf
+rm sysctl.conf
+}
+
 printf "\n🎉 Done at $(date +'%r')!\n\n"
