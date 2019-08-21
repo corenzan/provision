@@ -85,6 +85,7 @@ while test -z "$administrator"; do
 	test -z "$administrator" && echo "      🚫 Administrator username cannot be blank." >&2
 done
 
+read -p "    - Enter Your SSH Port:" SSHPORT
 echo ""
 echo "    - Paste your public key for SSH authentication:"
 echo "      You can generate a new one using: ssh-keygen -t rsa -b 4096 -C \"me@example.org\""
@@ -165,7 +166,7 @@ iptables -A INPUT -p udp --dport 53 -j ACCEPT
 iptables -A INPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
 
 # Allow incoming TCP traffic for HTTP, HTTPS and SSH.
-allowed_tcp_ports="80 443 822"
+allowed_tcp_ports="80 443 $SSHPORT"
 for port in $allowed_tcp_ports; do
 	iptables -A INPUT -p tcp --dport $port -j ACCEPT
 done
@@ -325,7 +326,7 @@ cat > /etc/ssh/sshd_config <<-EOF
 	MaxStartups 2
 	PasswordAuthentication no
 	DebianBanner no
-	Port 822
+	Port $SSHPORT
 EOF
 
 # The Diffie-Hellman algorithm is used by SSH to establish a secure connection.
