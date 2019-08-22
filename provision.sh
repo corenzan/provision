@@ -403,12 +403,15 @@ cd rkhunter-1.4.6
 ./installer.sh --layout default --install /usr/local/bin/rkhunter --update/usr/local/bin/rkhunter --propupd
 rm -rf /usr/local/src/rkhunter*
 ## Addind to CronJob
+crontab -l > crontab.bak
 cat<<EOF> /etc/cron.daily/rkhunter.sh
 #!/bin/sh(/usr/local/bin/rkhunter --versioncheck/usr/local/bin/rkhunter --update/usr/local/bin/rkhunter --cronjob --report-warnings-only)
 /bin/mail -s 'rkhunter Daily Run ($HOSTNAME)' $MYMAIL
 EOF
 chmod 700 /etc/cron.daily/rkhunter.sh
 rkhunter -c -sk
-
+rkhunter --update
+rkhunter --propupd
+rkhunter --check
 }
 printf "\n🎉 Done at $(date +'%r')!\n\n"
