@@ -394,19 +394,19 @@ echo 'vm.swappiness = 10' >> /etc/sysctl.conf
 sysctl -p
 
 rkhunter(){
-read -p "     What is your admin Email?: " MYMAIL
-read -P "     What is RKHunter Download Link? 
-     ( https://sourceforge.net/projects/rkhunter/files/rkhunter/1.4.6/rkhunter-1.4.6.tar.gz/download )" RKPKG
-wget -P /usr/local/src $RKPKG
-tar -zxvf rkhunter-1.4.6.tar.gz --directory /usr/local/src
-cd rkhunter-1.4.6 
-./installer.sh --layout default --install /usr/local/bin/rkhunter --update/usr/local/bin/rkhunter --propupd
+read -p "     What is your admin Email?: " my_email
+read -P "     What is RKHunter Download Link? ( example: 1.4.6 )" rk_pkg
+rk_link="https://sourceforge.net/projects/rkhunter/files/rkhunter/$rk_pkg/rkhunter-$rp_pkg.tar.gz/download"
+wget -P /usr/local/src $rk_link
+tar -zxvf rkhunter-$rk_pkg.tar.gz --directory /usr/local/src
+cd rkhunter-$rk_pkg.tar.gz 
+./installer.sh --layout default --install /usr/local/bin/rkhunter --update /usr/local/bin/rkhunter --propupd
 rm -rf /usr/local/src/rkhunter*
 ## Addind to CronJob
 crontab -l > crontab.bak
 cat<<EOF> /etc/cron.daily/rkhunter.sh
 #!/bin/sh(/usr/local/bin/rkhunter --versioncheck/usr/local/bin/rkhunter --update/usr/local/bin/rkhunter --cronjob --report-warnings-only)
-/bin/mail -s 'rkhunter Daily Run ($HOSTNAME)' $MYMAIL
+/bin/mail -s 'rkhunter Daily Run ($HOSTNAME)' $my_email
 EOF
 chmod 700 /etc/cron.daily/rkhunter.sh
 rkhunter -c -sk
