@@ -394,3 +394,73 @@ echo 'vm.swappiness = 10' >> /etc/sysctl.conf
 sysctl -p
 
 printf "\n🎉 Done at $(date +'%r')!\n\n"
+
+f2b(){
+echo "     Installing and Configuring Fail2Ban "
+cd /etc/fail2ban
+cp jail.conf jail.local
+### Fail2Ban SETTINGS ###
+sed -i 's/destemail = root@localhost/destemail = '$MY_EMAIL'/' /etc/fail2ban/jail.conf 
+sed -i 's/sender = root@localhost/sender = '$MY_SERVER_EMAIL_FROM'/' /etc/fail2ban/jail.conf 
+sed -i 's/action = %(action_)s/action = %(action_mwl)s/' /etc/fail2ban/jail.conf 
+echo "[nginx-http-auth]" > /etc/fail2ban/jail.local 
+echo "enabled  = false" >> /etc/fail2ban/jail.local 
+echo "filter   = nginx-http-auth" >> /etc/fail2ban/jail.local 
+echo "port     = http,https" >> /etc/fail2ban/jail.local 
+echo "logpath  = %(nginx_error_log)s" >> /etc/fail2ban/jail.local 
+echo "#logpath  = /opt/prj/dockavel/data/log/nginx/error.log" >> /etc/fail2ban/jail.local 
+echo "" >> /etc/fail2ban/jail.local 
+echo "[nginx-noscript]" >> /etc/fail2ban/jail.local 
+echo "enabled  = false" >> /etc/fail2ban/jail.local 
+echo "port     = http,https" >> /etc/fail2ban/jail.local 
+echo "filter   = nginx-noscript" >> /etc/fail2ban/jail.local 
+echo "logpath  = %(nginx_error_log)s" >> /etc/fail2ban/jail.local 
+echo "#logpath  = /opt/prj/dockavel/data/log/nginx/error.log" >> /etc/fail2ban/jail.local 
+echo "maxretry = 6" >> /etc/fail2ban/jail.local 
+echo "" >> /etc/fail2ban/jail.local 
+echo "[ssh]" >> /etc/fail2ban/jail.local 
+echo "enabled = true" >> /etc/fail2ban/jail.local 
+echo "port    = $ssh_port" >> /etc/fail2ban/jail.local 
+echo "filter  = sshd" >> /etc/fail2ban/jail.local 
+echo "logpath = /var/log/auth.log" >> /etc/fail2ban/jail.local 
+echo "maxretry = 4" >> /etc/fail2ban/jail.local 
+echo "" >> /etc/fail2ban/jail.local 
+echo "[ssh-ddos]" >> /etc/fail2ban/jail.local 
+echo "enabled = true" >> /etc/fail2ban/jail.local 
+echo "port    = $ssh_port" >> /etc/fail2ban/jail.local 
+echo "filter  = sshd-ddos" >> /etc/fail2ban/jail.local 
+echo "logpath = /var/log/auth.log" >> /etc/fail2ban/jail.local 
+echo "" >> /etc/fail2ban/jail.local 
+echo "[Definition]" > /etc/fail2ban/filter.d/nginx-http-auth.conf 
+echo 'failregex = ^ \[error\] \d+#\d+: \*\d+ user "\S+":? (password mismatch|was not found in ".*"), client: <HOST>, server: \S+, request: "\S+ \S+ HTTP/\d+\.\d+", host: "\S+"\s*$' >> /etc/fail2ban/filter.d/nginx-http-auth.conf 
+echo "ignoreregex =" >> /etc/fail2ban/filter.d/nginx-http-auth.conf 
+echo "[Definition]" > /etc/fail2ban/filter.d/nginx-noscript.conf 
+echo "failregex = ^<HOST> -.*GET.*(\.asp|\.exe|\.pl|\.cgi|\.scgi)" >> /etc/fail2ban/filter.d/nginx-noscript.conf 
+echo "ignoreregex =" >> /etc/fail2ban/filter.d/nginx-noscript.conf
+#### END Fail2Ban ####
+systemctl restart fail2ban
+}
+
+psad() {
+echo "     Installing and Configuring PSAD "
+### Fail2Ban SETTINGS ###
+sed -i 's/EMAIL_ADDRESSES             root@localhost;/EMAIL_ADDRESSES             '$MYEMAIL';/' /etc/psad/psad.conf
+sed -i 's/HOSTNAME                    _CHANGEME_;/HOSTNAME                    '$HOSTNAME';/' /etc/psad/psad.conf
+sed -i 's/ENABLE_AUTO_IDS             N;/ENABLE_AUTO_IDS             Y;/' /etc/psad/psad.conf
+sed -i 's/DANGER_LEVEL2               15;/DANGER_LEVEL2               15;/' /etc/psad/psad.conf
+sed -i 's/DANGER_LEVEL3               150;/DANGER_LEVEL3               30;/' /etc/psad/psad.conf
+sed -i 's/DANGER_LEVEL4               1500;/DANGER_LEVEL4               100;/' /etc/psad/psad.conf
+sed -i 's/DANGER_LEVEL5               10000;/DANGER_LEVEL5               300;/' /etc/psad/psad.conf
+sed -i 's/EMAIL_ALERT_DANGER_LEVEL    1;/EMAIL_ALERT_DANGER_LEVEL    5;/' /etc/psad/psad.conf
+sed -i 's/EMAIL_LIMIT                 0;/EMAIL_LIMIT                 1;/' /etc/psad/psad.conf
+sed -i 's/EMAIL_LIMIT_STATUS_MSG      Y;/EMAIL_LIMIT_STATUS_MSG      N;/' /etc/psad/psad.conf
+sed -i 's/ENABLE_AUTO_IDS_EMAILS      Y;/ENABLE_AUTO_IDS_EMAILS      N;/' /etc/psad/psad.conf
+sed -i 's/AUTO_IDS_DANGER_LEVEL       5;/AUTO_IDS_DANGER_LEVEL       1;/' /etc/psad/psad.conf
+sed -i 's#IPT_SYSLOG_FILE             /var/log/messages;#IPT_SYSLOG_FILE             /var/log/syslog;#' /etc/psad/psad.conf
+#### END PSAD ####
+psad --sig-update 
+### Check
+### all outputs with a + sign must appear psad --fw-analyze ###
+service rsyslog restart
+psad -R
+}
