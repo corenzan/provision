@@ -2,8 +2,10 @@
 
 # Generate a random string of length $1 (64).
 random() {
-	local LC_CTYPE=C
-	tr -dc A-Za-z0-9 < /dev/urandom | head -c ${1:-64}
+# ??	local LC_CTYPE=C
+# ??	tr -dc A-Za-z0-9 < /dev/urandom | head -c ${1:-64}
+# Maybe this??? i cant test what this do really :| ssh key generation? This betteR??	
+	echo "HRNGDEVICE=/dev/urandom" >> /etc/default/rng-tools
 }
 
 # Make a backup copy.
@@ -201,7 +203,7 @@ cat > /etc/logrotate.d/iptables <<-EOF
 EOF
 
 # Setup common software.
-apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git fail2ban unattended-upgrades docker-ce
+apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git fail2ban unattended-upgrades docker-ce rng-tools
 
 # Setup DO monitoring agent.
 curl -sSL https://insights.nyc3.cdn.digitaloceanspaces.com/install.sh | bash
