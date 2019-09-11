@@ -227,7 +227,7 @@ cat > /etc/docker/daemon.json <<-EOF
 		"storage-driver": "overlay2",
 		"log-driver": "json-file",
 		"log-opts": {
-			"max-size": "10m",    
+			"max-size": "10m",
 			"max-file": "10"
 		},
 		"live-restore": true
@@ -316,8 +316,8 @@ cat > /etc/ssh/sshd_config <<-EOF
 	HostbasedAuthentication no
 
 	AllowGroups remote
-	ClientAliveCountMax 0
-	ClientAliveInterval 600
+	ClientAliveCountMax 10
+	ClientAliveInterval 60
 	ListenAddress 0.0.0.0
 	LoginGraceTime 30
 	MaxAuthTries 2
