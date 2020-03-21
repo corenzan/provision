@@ -1,29 +1,29 @@
 # Provision
 
-> Bootstrap server setup.
+> Feed your servers.
 
 ## Warning
 
-This script will require elevated privilege, i.e. `sudo`, and will meddle with the security of your operating system. You MUST read it whole and understand exactly what it does before proceeding. You are fully responsible for anything that may come to happen to your server.
+This script will require elevated privilege, i.e. `sudo`, and it'll change configurations that might lock you out or leave your servers exposed. You MUST read it whole and understand exactly what it does before proceeding.
 
 ## About
 
-Provision is a script in Bash to bootstrap the setup of new servers on cloud providers such as AWS, DigitalOcean, and Linode. It's tailor made for my needs but it just might suit you.
+Provision is a script in POSIX Bash to automate the setup of new servers on cloud providers such as AWS, DigitalOcean, and Linode. It's tailor made for my needs but it just might suit you.
 
 Here's an overview of what it'll do.
 
 - Reset root password.
-- Create a new user, allow passwordless sudo and authorize your public key.
+- Allow passwordless sudo.
 - Reconfigure SSH and switch to an alternate port (822).
 - Disable IPv6 due to DigitalOcean's issue with Docker.
-- Upgrade existing packages and install new software.
+- Upgrade existing packages.
+- Install new packages such as Docker and fail2ban.
 - Reset firewall configuration.
-- Block all incoming traffic except on ports select ports.
-- Configure automatic unattended upgrades for security patches.
-- Setup swap space the same size as available memory.
-- Output secrets in plain text and save to the disk.
+- Block all incoming traffic except on selected ports.
+- Create swap space equivalent to the available memory.
+- Output secrets in plain text and save it to the disk.
 
-Currently it'll only prompt for username and public key. For everything else you'll have to edit the script beforehand.
+Some options are available via command flags. Try running with --help.
 
 ## Reference
 

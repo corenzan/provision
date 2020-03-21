@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Halt on errors and undeclared variables.
+set -ue
+
 # Generate a random string of length $1 (64).
 random() {
 	local LC_CTYPE=C
@@ -9,115 +12,130 @@ random() {
 # Make a backup copy.
 backup() {
 	if test -f $1; then
-		cp $1 $1.$(date +"%Y%m%d%H%M%S")
+		cp $1 $1.backup-$(date +"%Y%m%d%H%M%S")
 	fi
 }
 
-# Parse flags.
-argv="$@"
-while test $# -gt 0; do
-	case "$1" in
-		--log|-l) log="$2"; shift ;;
-		--debug|-x) debug=true ;;
-	esac
-	shift
-done
+# Complain and quit.
+die() {
+	echo "$0: $1" >&2
+	exit 1
+}
 
-# Restore positional arguments.
-set -- "$argv"
+# Print out the manual.
+manual() {
+	cat <<-EOF >&2
+		SYNOPSIS
+		    Feed your servers. See https://github.com/corenzan/provision
+
+		OPTIONS
+		    -h,--help          Display this.
+		    -l,--log           Save output to file.
+		    -x,--debug         Print out every command.
+		    -u,--username      Administrator's username.
+		    -k,--public-key    Path or URL to administrator's public key.
+		    -d,--digitalocean  Enable some options that are exclusive to DigitalOcean.
+	EOF
+}
+
+# Parse options.
+options=$(getopt -n "$0" -o hxu:k:d -l help,log,debug,username,public-key,digitalocean -- "$@")
+
+# Bail if parsing failed.
+if test $? -ne 0; then
+	exit 1
+fi
+
+# Restore arguments.
+eval set -- "$options"
+
+# Configure script.
+if test -n "$options"; then
+	while :; do
+		case "$1" in
+			-l|--log)
+				log="$2"
+				shift
+				shift
+				;;
+			-k|--public-key)
+				if test "${2#http}" != "$2"; then
+					public_key="$(curl -fsL $2)"
+				elif test -f "$2"; then
+					public_key="$(cat $2)"
+				else
+					die "Public key could not be read from '$2'."
+				fi
+				shift
+				shift
+				;;
+			-u|--username)
+				administrator="$2"
+				shift
+				shift
+				;;
+			-d|--digitalocean)
+				digitalocean=1
+				shift
+				shift
+				;;
+			-x|--debug)
+				debug=1
+				shift
+				;;
+			-h|--help)
+				manual
+				exit
+				;;
+			--)
+				shift
+				break
+				;;
+		esac
+	done
+fi
+
+# Whine about missing options.
+test -n "$administrator" || die "Flag --username is required. Try --help."
+test -n "$public_key" || die "Flag --public-key is required. Try --help."
 
 # Set defaults.
 log=${log:-provision-$(date +"%Y%m%d%H%M%S").log}
-debug=${debug:-false}
-distro="$(lsb_release -is | tr '[A-Z]' '[a-z]')"
-release="$(lsb_release -cs)"
+debug=${debug:-0}
+digitalocean=${digitalocean:-0}
+linux_id="$(lsb_release -is | tr '[A-Z]' '[a-z]')"
+linux_codename="$(lsb_release -cs)"
+
+# Check Linux compatibility.
+test "$linux_id" = "ubuntu" || test "$linux_id" = "debian" || die "Distro '$linux_id' hasn't been tested."
 
 # -
 # -
 # -
 
 # Log everything.
-test "$log" -ne "-" && exec > >(tee $log) 2>&1
+test "$log" = "-" || exec > >(time tee $log) 2>&1
 
 # Require privilege, i.e. sudo.
-if test $(id -u) -ne 0; then
-	echo "🚫 Try again using sudo or as root." >&2
-	exit 1
-fi
+test $(id -u) -eq 0 || die "Try again using sudo or as root."
 
 # Test for the presence of expected software.
 dependency="apt-get apt-key curl iptables sysctl service"
 for dep in $dependency; do
 	if ! type $dep >/dev/null 2>&1; then
-		echo "🚫 '$dep' could not be found, which is a hard dependency along with: $dependency." >&2
-		exit 1
+		die "$dep could not be found, which is a hard dependency along with: $dependency."
 	fi
 done
 
-printf "
-  ____                 _     _
- |  _ \\ _ __ _____   _(_)___(_) ___  _ __
- | |_) | '__/ _ \\ \\ / / / __| |/ _ \\| '_ \\
- |  __/| | | (_) \\ V /| \\__ \\ | (_) | | | |
- |_|   |_|  \\___/ \\_/ |_|___/_|\\___/|_| |_|
-
- ⚠ Please note that this script will:
-
-    - Reset root password.
-    - Create a new user and authorize your public key.
-    - Reset SSH configuration and use an alternative port (822).
-    - Disable IPv6.
-    - Upgrade existing packages and install new software.
-    - Reset firewall configuration.
-    - Block all incoming traffic except on ports 822 (for SSH), 80, and 443.
-    - Configure automatic unattended upgrades for security patches.
-    - Setup swap space the same size as available memory.
-    - \e[1mOutput secrets in plain text and save to the disk\e[0m.
-
- 🗒 Before proceeding though we're gonna need a few things:
-
-"
-
-echo "    - Enter the administrator username:"
-administrator=""
-while test -z "$administrator"; do
-	read -p "      👉 " administrator
-	test -z "$administrator" && echo "      🚫 Administrator username cannot be blank." >&2
-done
-
-echo ""
-echo "    - Paste your public key for SSH authentication:"
-echo "      You can generate a new one using: ssh-keygen -t rsa -b 4096 -C \"me@example.org\""
-public_key=""
-while test -z "$public_key"; do
-	read -e -p "      👉 " public_key
-	test -z "$public_key" && echo "      🚫 $administrator's public key cannot be blank." >&2
-done
-
-printf "
- ℹ Also remember:
-
-     - You can re-execute this script with --debug flag to have each step printed on the screen.
-     - You can suspend the script's execution at any time with CTRL-Z and resume it with the 'fg' command.
-     - Everything will be logged to './$log'. You can change the file path or name with the --log flag.
-
-"
-
-# Confirm before continueing.
-read -rsp "🚦 Press ENTER to continue or CTRL-C to abort..." _
-
-# Halt on errors and undeclared variables.
-set -ue
-
-# Enable debug with either --debug or -x.
-test "$debug" = true && set -x
+# Enable debug.
+test $debug -ne 0 && set -x
 
 # Let debconf know we won't interact.
 export DEBIAN_FRONTEND=noninteractive
 
 # Add Docker repository to the source list.
-curl -fsSL https://download.docker.com/linux/$distro/gpg | apt-key add -
-echo "deb [arch=amd64] https://download.docker.com/linux/$distro $release stable" >> /etc/apt/sources.list.d/docker.list
+curl -fsSL https://download.docker.com/linux/$linux_id/gpg | apt-key add -
+echo "deb [arch=amd64] https://download.docker.com/linux/$linux_id $linux_codename stable" >> /etc/apt/sources.list.d/docker.list
 
 # Refresh repositories and upgrade installed packages.
 apt-get update
@@ -133,13 +151,15 @@ locale-gen en_US.UTF-8
 # Disable IPV6 because we're likely on DigitalOcean.
 # - https://github.com/dokku/dokku/blob/4008919a3c8b1cf440d010f448215d0776938f88/docs/getting-started/install/digitalocean.md
 # - https://twitter.com/ksaitor/status/1021435996230045697
-cat >> /etc/sysctl.conf <<-EOF
-	net.ipv6.conf.all.disable_ipv6 = 1
-	net.ipv6.conf.default.disable_ipv6 = 1
-	net.ipv6.conf.lo.disable_ipv6 = 1
-EOF
-sysctl -p
-cat /proc/sys/net/ipv6/conf/all/disable_ipv6
+if test $digitalocean -ne 0; then
+	cat >> /etc/sysctl.conf <<-EOF
+		net.ipv6.conf.all.disable_ipv6 = 1
+		net.ipv6.conf.default.disable_ipv6 = 1
+		net.ipv6.conf.lo.disable_ipv6 = 1
+	EOF
+	sysctl -p
+	cat /proc/sys/net/ipv6/conf/all/disable_ipv6
+fi
 
 # Clear firewall rules.
 iptables -F
@@ -152,9 +172,6 @@ iptables -P FORWARD ACCEPT
 iptables -A INPUT -i lo -j ACCEPT
 iptables -A OUTPUT -o lo -j ACCEPT
 
-# Docker client/server communication.
-iptables -A INPUT -s 127.0.0.1 -p tcp --dport 2375 -j ACCEPT
-
 # Keep established or related connections.
 iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 
@@ -164,11 +181,17 @@ iptables -A INPUT -p udp --dport 53 -j ACCEPT
 # Allow regular pings.
 iptables -A INPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
 
-# Allow incoming TCP traffic for HTTP, HTTPS and SSH.
-allowed_tcp_ports="80 443 822"
-for port in $allowed_tcp_ports; do
-	iptables -A INPUT -p tcp --dport $port -j ACCEPT
-done
+# Docker Swarm communication.
+iptables -A INPUT -s 127.0.0.1 -p tcp --dport 2375 -j ACCEPT
+iptables -A INPUT -p tcp --dport 2377 -j ACCEPT
+iptables -A INPUT -p tcp --dport 7946 -j ACCEPT
+iptables -A INPUT -p udp --dport 7946 -j ACCEPT
+iptables -A INPUT -p udp --dport 4789 -j ACCEPT
+
+# Allow incoming traffic for HTTP, HTTPS and SSH.
+iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+iptables -A INPUT -p tcp --dport 822 -j ACCEPT
 
 # Block any other incoming connections.
 iptables -A INPUT -j DROP
@@ -201,14 +224,16 @@ cat > /etc/logrotate.d/iptables <<-EOF
 EOF
 
 # Setup common software.
-apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git fail2ban unattended-upgrades docker-ce
+apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git gnupg2 fail2ban unattended-upgrades docker-ce
 
 # Setup DO monitoring agent.
-curl -sSL https://insights.nyc3.cdn.digitaloceanspaces.com/install.sh | bash
+if test $digitalocean -ne 0; then
+	curl -sSL https://insights.nyc3.cdn.digitaloceanspaces.com/install.sh | bash
+fi
 
 # Setup Dokku.
-DOKKU_TAG=v0.17.9
-curl -fsSL https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh | bash
+# DOKKU_TAG=v0.17.9
+# curl -fsSL https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh | bash
 
 # Only dump iptables configuration after installing all the software.
 iptables-save > /etc/iptables.conf
@@ -224,13 +249,13 @@ chmod +x /etc/network/if-up.d/iptables
 # https://docs.docker.com/engine/reference/commandline/dockerd/
 cat > /etc/docker/daemon.json <<-EOF
 	{
+		"live-restore": true,
 		"storage-driver": "overlay2",
 		"log-driver": "json-file",
 		"log-opts": {
-			"max-size": "10m",
-			"max-file": "10"
-		},
-		"live-restore": true
+			"max-size": "8m",
+			"max-file": "8"
+		}
 	}
 EOF
 
@@ -240,22 +265,20 @@ apt-get clean
 # Reset root password.
 password="$(random)"
 chpasswd <<< "root:$password"
-echo "🔒 root:$password"
+echo "-> root:$password"
 
 # Create a new SSH group.
 groupadd remote
-
-# Add dokku user to SSH group.
-usermod -aG remote dokku
 
 # Create a new administrator user.
 password="$(random)"
 useradd -d /home/$administrator -m -s /bin/bash $administrator
 chpasswd <<< "$administrator:$password"
 usermod -aG sudo,remote,docker $administrator
-echo "🔒 $administrator:$password"
+echo "-> $administrator:$password"
 
 # Do not ask for password when sudoing.
+backup /etc/sudoers
 sed -i '/^%sudo/c\%sudo\tALL=(ALL:ALL) NOPASSWD:ALL' /etc/sudoers
 
 # Setup RSA key for secure SSH authorization.
@@ -307,24 +330,50 @@ cat > /etc/ssh/sshd_config <<-EOF
 	# Verify hostname matches IP.
 	UseDNS no
 
-	Compression no
+	# TCPKeepAlive is not encrypted.
 	TCPKeepAlive no
+
 	AllowAgentForwarding no
+	Compression no
+
+	# Forbid root sessions.
 	PermitRootLogin no
 
 	# Don't allow .rhosts or /etc/hosts.equiv.
 	HostbasedAuthentication no
 
+	# Allow users in 'remote' group to connect.
+	# To add and remove users from the group, respectively:
+	# - usermod -aG remote <username>
+	# - gpasswd -d <username> remote 
 	AllowGroups remote
-	ClientAliveCountMax 10
+	
+	# Drop clients that idle longer than 10 minutes.
 	ClientAliveInterval 60
+	ClientAliveCountMax 10
+	
+	# Listen everywhere.
 	ListenAddress 0.0.0.0
-	LoginGraceTime 30
+
+	# Drop if a client take too long to authenticate.
+	LoginGraceTime 10
+
+	# Log additional failures.
 	MaxAuthTries 2
-	MaxSessions 2
-	MaxStartups 2
+
+	# Limit connections from the same network.
+	MaxSessions 10
+
+	# Allow only one authentication at a time.
+	MaxStartups 1
+
+	# Password are insecure.
 	PasswordAuthentication no
+
+	# Silence is golden.
 	DebianBanner no
+
+	# Change default port.
 	Port 822
 EOF
 
@@ -338,59 +387,15 @@ mv /etc/ssh/moduli.tmp /etc/ssh/moduli
 # Restart SSH server.
 service ssh restart
 
-# Configure unattended upgrades for security patches.
-cat > /etc/apt/apt.conf.d/51unattended-upgrades <<-EOF
-	// Enable the update/upgrade script (0=disable)
-	APT::Periodic::Enable "1";
-
-	// Do "apt-get update" automatically every n-days (0=disable)
-	APT::Periodic::Update-Package-Lists "1";
-
-	// Do "apt-get upgrade --download-only" every n-days (0=disable)
-	APT::Periodic::Download-Upgradeable-Packages "1";
-
-	// Do "apt-get autoclean" every n-days (0=disable)
-	APT::Periodic::AutocleanInterval "7";
-
-	// Send report mail to root
-	//     0:  no report             (or null string)
-	//     1:  progress report       (actually any string)
-	//     2:  + command outputs     (remove -qq, remove 2>/dev/null, add -d)
-	//     3:  + trace on    APT::Periodic::Verbose "2";
-	APT::Periodic::Unattended-Upgrade "0";
-
-	// Automatically upgrade packages from these
-	Unattended-Upgrade::Origins-Pattern {
-		"o=Debian,a=stable";
-		"o=Debian,a=stable-updates";
-		"origin=Debian,codename=\${distro_codename},label=Debian-Security";
-	};
-
-	// You can specify your own packages to NOT automatically upgrade here
-	Unattended-Upgrade::Package-Blacklist {
-	};
-
-	// Run dpkg --force-confold --configure -a if a unclean dpkg state is detected to true to ensure that updates get installed even when the system got interrupted during a previous run
-	Unattended-Upgrade::AutoFixInterruptedDpkg "true";
-
-	//Perform the upgrade when the machine is running because we wont be shutting our server down often
-	Unattended-Upgrade::InstallOnShutdown "false";
-
-	// Remove all unused dependencies after the upgrade has finished
-	Unattended-Upgrade::Remove-Unused-Dependencies "true";
-
-	// Remove any new unused dependencies after the upgrade has finished
-	Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
-EOF
-
-# Setup swap space with size same as memory available.
+# Create swap space equivalent to the available memory.
 memory=$(free -m | awk '/^Mem:/{print $2}')
 fallocate -l ${memory}MB /swapfile
 chmod 600 /swapfile
 mkswap /swapfile
 swapon /swapfile
+backup /etc/fstab
 echo '/swapfile none swap sw 0 0' >> /etc/fstab
+backup /etc/sysctl.conf
 echo 'vm.swappiness = 10' >> /etc/sysctl.conf
 sysctl -p
 
-printf "\n🎉 Done at $(date +'%r')!\n\n"
