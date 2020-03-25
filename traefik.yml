@@ -1,4 +1,5 @@
 version: "3"
+
 services:
   traefik:
     image: traefik:2.1
@@ -6,32 +7,27 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
       - 80:80
-      # - 443:443
     networks:
-      - public
+      - traefik
     command:
       - --log.level=DEBUG
       - --api
       - --providers.docker
-      - --providers.docker.swarmMode
+      - --providers.docker.watch
+      - --providers.docker.swarmmode
       - --providers.docker.exposedbydefault=false
-      - --providers.docker.network=public
+      - --providers.docker.network=traefik
       - --entrypoints.http.address=:80
-      # - --entrypoints.https.address=:443
-      # - --certificatesresolvers.tlschallenge.acme.httpChallenge.entrypoint=http
-      # - --certificatesresolvers.tlschallenge.acme.email=contato@corenzan.com
-      # - --certificatesresolvers.tlschallenge.acme.storage=/etc/letsencrypt/acme.json
     deploy:
-      mode: global
       placement:
         constraints:
           - node.role == manager
       labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.api.rule=Host(`traefik.$HOSTNAME`)"
-        - "traefik.http.routers.api.service=api@internal"
-        - "traefik.http.services.dummy-svc.loadbalancer.server.port=9999"
+        - traefik.enable=true
+        - traefik.http.routers.traefik.rule=Host(`traefik.$HOSTNAME`)
+        - traefik.http.routers.traefik.service=api@internal
+        - traefik.http.services.dummy-svc.loadbalancer.server.port=9999
 
 networks:
-  public:
+  traefik:
     external: true

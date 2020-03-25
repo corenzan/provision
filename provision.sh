@@ -34,12 +34,12 @@ manual() {
 		    -x,--debug         Print out every command.
 		    -u,--username      Administrator's username.
 		    -k,--public-key    Path or URL to administrator's public key.
-		    -d,--digitalocean  Enable some options that are exclusive to DigitalOcean.
+		    -i, --ipv6         Enable IPv6.
 	EOF
 }
 
 # Parse options.
-options=$(getopt -n "$0" -o hxu:k:d -l help,log,debug,username,public-key,digitalocean -- "$@")
+options=$(getopt -n "$0" -o hlxu:k:i -l help,log,debug,username,public-key,ipv6 -- "$@")
 
 # Bail if parsing failed.
 if test $? -ne 0; then
@@ -53,8 +53,21 @@ eval set -- "$options"
 if test -n "$options"; then
 	while :; do
 		case "$1" in
+			-h|--help)
+				manual
+				exit
+				;;
 			-l|--log)
 				log="$2"
+				shift
+				shift
+				;;
+			-x|--debug)
+				debug=1
+				shift
+				;;
+			-u|--username)
+				administrator="$2"
 				shift
 				shift
 				;;
@@ -69,23 +82,8 @@ if test -n "$options"; then
 				shift
 				shift
 				;;
-			-u|--username)
-				administrator="$2"
-				shift
-				shift
-				;;
-			-d|--digitalocean)
-				digitalocean=1
-				shift
-				shift
-				;;
-			-x|--debug)
-				debug=1
-				shift
-				;;
-			-h|--help)
-				manual
-				exit
+			-i|--ipv6)
+				die "IPv6 isn't implemented yet."
 				;;
 			--)
 				shift
@@ -102,7 +100,6 @@ test -n "$public_key" || die "Flag --public-key is required. Try --help."
 # Set defaults.
 log=${log:-provision-$(date +"%Y%m%d%H%M%S").log}
 debug=${debug:-0}
-digitalocean=${digitalocean:-0}
 linux_id="$(lsb_release -is | tr '[A-Z]' '[a-z]')"
 linux_codename="$(lsb_release -cs)"
 
@@ -148,18 +145,16 @@ export LC_ALL=en_US.UTF-8
 update-locale LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
 locale-gen en_US.UTF-8
 
-# Disable IPV6 because we're likely on DigitalOcean.
-# - https://github.com/dokku/dokku/blob/4008919a3c8b1cf440d010f448215d0776938f88/docs/getting-started/install/digitalocean.md
-# - https://twitter.com/ksaitor/status/1021435996230045697
-if test $digitalocean -ne 0; then
-	cat >> /etc/sysctl.conf <<-EOF
-		net.ipv6.conf.all.disable_ipv6 = 1
-		net.ipv6.conf.default.disable_ipv6 = 1
-		net.ipv6.conf.lo.disable_ipv6 = 1
-	EOF
-	sysctl -p
-	cat /proc/sys/net/ipv6/conf/all/disable_ipv6
-fi
+# Disable IPv6 for now, pending:
+# - Compatibility with Docker/Docker Swarm.
+# - Firewall with ip6tables.
+cat >> /etc/sysctl.conf <<-EOF
+	net.ipv6.conf.all.disable_ipv6 = 1
+	net.ipv6.conf.default.disable_ipv6 = 1
+	net.ipv6.conf.lo.disable_ipv6 = 1
+EOF
+sysctl -p
+cat /proc/sys/net/ipv6/conf/all/disable_ipv6
 
 # Clear firewall rules.
 iptables -F
@@ -175,7 +170,8 @@ iptables -A OUTPUT -o lo -j ACCEPT
 # Keep established or related connections.
 iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 
-# Whitelist communication to DigitalOcean nameservers.
+# Allow DNS communication.
+iptables -A INPUT -p tcp --dport 53 -j ACCEPT
 iptables -A INPUT -p udp --dport 53 -j ACCEPT
 
 # Allow regular pings.
