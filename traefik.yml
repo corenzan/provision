@@ -10,23 +10,18 @@ services:
     networks:
       - traefik
     command:
-      - --log.level=DEBUG
+      # - --log.level=DEBUG
       - --api
       - --providers.docker
       - --providers.docker.watch
-      - --providers.docker.swarmmode
       - --providers.docker.exposedbydefault=false
       - --providers.docker.network=traefik
       - --entrypoints.http.address=:80
-    deploy:
-      placement:
-        constraints:
-          - node.role == manager
-      labels:
-        - traefik.enable=true
-        - traefik.http.routers.traefik.rule=Host(`traefik.$HOSTNAME`)
-        - traefik.http.routers.traefik.service=api@internal
-        - traefik.http.services.dummy-svc.loadbalancer.server.port=9999
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.traefik.rule=Host(`traefik.localhost`)
+      - traefik.http.routers.traefik.service=api@internal
+    restart: always
 
 networks:
   traefik:

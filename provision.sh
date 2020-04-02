@@ -34,12 +34,15 @@ manual() {
 		    -x,--debug         Print out every command.
 		    -u,--username      Administrator's username.
 		    -k,--public-key    Path or URL to administrator's public key.
-		    -i, --ipv6         Enable IPv6.
 	EOF
 }
 
+# -
+# -
+# -
+
 # Parse options.
-options=$(getopt -n "$0" -o hlxu:k:i -l help,log,debug,username,public-key,ipv6 -- "$@")
+flags=$(getopt -n "$0" -o hlxu:k: -l help,log,debug,username,public-key -- "$@")
 
 # Bail if parsing failed.
 if test $? -ne 0; then
@@ -47,10 +50,10 @@ if test $? -ne 0; then
 fi
 
 # Restore arguments.
-eval set -- "$options"
+eval set -- "$flags"
 
 # Configure script.
-if test -n "$options"; then
+if test -n "$flags"; then
 	while :; do
 		case "$1" in
 			-h|--help)
@@ -82,9 +85,6 @@ if test -n "$options"; then
 				shift
 				shift
 				;;
-			-i|--ipv6)
-				die "IPv6 isn't implemented yet."
-				;;
 			--)
 				shift
 				break
@@ -93,28 +93,31 @@ if test -n "$options"; then
 	done
 fi
 
-# Whine about missing options.
-test -n "$administrator" || die "Flag --username is required. Try --help."
-test -n "$public_key" || die "Flag --public-key is required. Try --help."
-
 # Set defaults.
 log=${log:-provision-$(date +"%Y%m%d%H%M%S").log}
 debug=${debug:-0}
 linux_id="$(lsb_release -is | tr '[A-Z]' '[a-z]')"
 linux_codename="$(lsb_release -cs)"
 
+# -
+# -
+# -
+
+# Enable debug.
+test $debug -ne 0 && set -x
+
+# Whine about missing options.
+test -n "$administrator" || die "Flag --username is required. Try --help."
+test -n "$public_key" || die "Flag --public-key is required. Try --help."
+
 # Check Linux compatibility.
 test "$linux_id" = "ubuntu" || test "$linux_id" = "debian" || die "Distro '$linux_id' hasn't been tested."
 
-# -
-# -
-# -
+# Require privilege, i.e. sudo.
+test $(id -u) -eq 0 || { sudo $0 $flags; exit 0; }
 
 # Log everything.
 test "$log" = "-" || exec > >(time tee $log) 2>&1
-
-# Require privilege, i.e. sudo.
-test $(id -u) -eq 0 || die "Try again using sudo or as root."
 
 # Test for the presence of expected software.
 dependency="apt-get apt-key curl iptables sysctl service"
@@ -123,9 +126,6 @@ for dep in $dependency; do
 		die "$dep could not be found, which is a hard dependency along with: $dependency."
 	fi
 done
-
-# Enable debug.
-test $debug -ne 0 && set -x
 
 # Let debconf know we won't interact.
 export DEBIAN_FRONTEND=noninteractive
@@ -177,12 +177,8 @@ iptables -A INPUT -p udp --dport 53 -j ACCEPT
 # Allow regular pings.
 iptables -A INPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
 
-# Docker Swarm communication.
+# Docker communication.
 iptables -A INPUT -s 127.0.0.1 -p tcp --dport 2375 -j ACCEPT
-iptables -A INPUT -p tcp --dport 2377 -j ACCEPT
-iptables -A INPUT -p tcp --dport 7946 -j ACCEPT
-iptables -A INPUT -p udp --dport 7946 -j ACCEPT
-iptables -A INPUT -p udp --dport 4789 -j ACCEPT
 
 # Allow incoming traffic for HTTP, HTTPS and SSH.
 iptables -A INPUT -p tcp --dport 80 -j ACCEPT
@@ -223,13 +219,11 @@ EOF
 apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git gnupg2 fail2ban unattended-upgrades docker-ce
 
 # Setup DO monitoring agent.
-if test $digitalocean -ne 0; then
-	curl -sSL https://insights.nyc3.cdn.digitaloceanspaces.com/install.sh | bash
-fi
+curl -sSL https://insights.nyc3.cdn.digitaloceanspaces.com/install.sh | bash
 
 # Setup Dokku.
-# DOKKU_TAG=v0.17.9
-# curl -fsSL https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh | bash
+DOKKU_TAG=v0.20.0
+curl -fsSL https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh | bash
 
 # Only dump iptables configuration after installing all the software.
 iptables-save > /etc/iptables.conf
@@ -265,6 +259,9 @@ echo "-> root:$password"
 
 # Create a new SSH group.
 groupadd remote
+
+# Add dokku user to remote group.
+usermod -aG remote dokku
 
 # Create a new administrator user.
 password="$(random)"
