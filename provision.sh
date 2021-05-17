@@ -240,7 +240,6 @@ chmod +x /etc/network/if-up.d/iptables
 cat > /etc/docker/daemon.json <<-EOF
 	{
 		"live-restore": true,
-		"storage-driver": "overlay2",
 		"log-driver": "json-file",
 		"log-opts": {
 			"max-size": "8m",
