@@ -222,7 +222,7 @@ apt-get install -y build-essential apt-transport-https ca-certificates software-
 curl -sSL https://insights.nyc3.cdn.digitaloceanspaces.com/install.sh | bash
 
 # Setup Dokku.
-DOKKU_TAG=v0.24.7
+DOKKU_TAG=v0.25.7
 curl -fsSL https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh | bash
 
 # Only dump iptables configuration after installing all the software.
