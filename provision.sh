@@ -6,13 +6,13 @@ set -ue
 # Generate a random string of length $1 (64).
 random() {
 	local LC_CTYPE=C
-	tr -dc A-Za-z0-9 < /dev/urandom | head -c ${1:-64}
+	tr -dc A-Za-z0-9 < /dev/urandom | head -c 64
 }
 
-# Make a backup copy.
+# Make a backup copy of a file.
 backup() {
-	if test -f $1; then
-		cp $1 $1.backup-$(date +"%Y%m%d%H%M%S")
+	if test -f "$1"; then
+		cp "$1" "$1.backup-$(date +"%Y%m%d%H%M%S")"
 	fi
 }
 
@@ -26,14 +26,15 @@ die() {
 manual() {
 	cat <<-EOF >&2
 		SYNOPSIS
-		    Feed your servers. See https://github.com/corenzan/provision
+		    Initial server configuration for hosting web applications. See https://github.com/corenzan/provision
 
 		OPTIONS
-		    -h,--help          Display this.
-		    -l,--log           Save output to file.
-		    -x,--debug         Print out every command.
-		    -u,--username      Administrator's username.
-		    -k,--public-key    Path or URL to administrator's public key.
+		    -h --help                       Display this.
+		    -l --log <file>                 Save output to file.
+		    -x --debug                      Print out every command.
+		    -u --username <username>        Administrator's username.
+		    -k --public-key <public-key>    Path or URL to administrator's public key.
+		    -t --tools                      Install administrative tools.
 	EOF
 }
 
@@ -42,7 +43,7 @@ manual() {
 # -
 
 # Parse options.
-flags=$(getopt -n "$0" -o hlxu:k: -l help,log,debug,username,public-key -- "$@")
+flags=$(getopt -n "$0" -o hlxu:k:t -l help,log,debug,username,public-key,tools -- "$@")
 
 # Bail if parsing failed.
 if test $? -ne 0; then
@@ -76,13 +77,17 @@ if test -n "$flags"; then
 				;;
 			-k|--public-key)
 				if test "${2#http}" != "$2"; then
-					public_key="$(curl -fsL $2)"
+					public_key="$(curl -fsL "$2")"
 				elif test -f "$2"; then
-					public_key="$(cat $2)"
+					public_key="$(cat "$2")"
 				else
 					die "Public key could not be read from '$2'."
 				fi
 				shift
+				shift
+				;;
+			-t|--tools)
+				tools="1"
 				shift
 				;;
 			--)
@@ -96,7 +101,7 @@ fi
 # Set defaults.
 log=${log:-provision-$(date +"%Y%m%d%H%M%S").log}
 debug=${debug:-0}
-linux_id="$(lsb_release -is | tr '[A-Z]' '[a-z]')"
+linux_id="$(lsb_release -is | tr '[:upper:]' '[:lower:]')"
 linux_codename="$(lsb_release -cs)"
 
 # -
@@ -106,32 +111,54 @@ linux_codename="$(lsb_release -cs)"
 # Enable debug.
 test $debug -ne 0 && set -x
 
-# Whine about missing options.
-test -n "$administrator" || die "Flag --username is required. Try --help."
-test -n "$public_key" || die "Flag --public-key is required. Try --help."
+# Whine if mandatory options are missing.
+test -n "$administrator" || die "Option --username is required. See --help."
+test -n "$public_key" || die "Option --public-key is required. See --help."
 
 # Check Linux compatibility.
-test "$linux_id" = "ubuntu" || test "$linux_id" = "debian" || die "Distro '$linux_id' hasn't been tested."
+test "$linux_id" = "ubuntu" || test "$linux_id" = "debian" || die "Distro '$linux_id' isn't supported."
 
 # Require privilege, i.e. sudo.
-test $(id -u) -eq 0 || { sudo $0 $flags; exit 0; }
+test "$(id -u)" -eq 0 || { sudo "$0" "$flags"; exit 0; }
 
 # Log everything.
-test "$log" = "-" || exec > >(time tee $log) 2>&1
+test "$log" = "-" || exec > >(time tee "$log") 2>&1
 
-# Test for the presence of expected software.
-dependency="apt-get apt-key curl iptables sysctl service"
-for dep in $dependency; do
-	if ! type $dep >/dev/null 2>&1; then
-		die "$dep could not be found, which is a hard dependency along with: $dependency."
+# Check for required software.
+dependencies="apt-get apt-key curl iptables sysctl service"
+for dep in $dependencies; do
+	if ! type "$dep" >/dev/null 2>&1; then
+		die "$dep could not be found, which is a hard dependency along with: $dependencies."
 	fi
 done
 
 # Let debconf know we won't interact.
 export DEBIAN_FRONTEND=noninteractive
 
+# Install and configure administrative tools and exit.
+# - tmux
+# - vim
+# - starship prompt
+test -n "${tools=}" && {
+	git clone https://github.com/gpakosz/.tmux.git "$HOME/.tmux"
+	ln -s -f "$HOME/.tmux/.tmux.conf" "$HOME"
+
+	git clone --depth=1 https://github.com/amix/vimrc.git "$HOME/.vim_runtime"
+	sh ~/.vim_runtime/install_basic_vimrc.sh
+
+	git clone --recursive https://github.com/sorin-ionescu/prezto.git "$HOME/.zprezto"
+	find "$HOME/.zprezto/runcoms" -type f -not -name README.md | while read -r rcfile; do
+		ln -s "$rcfile" "$HOME/.${rcfile:t}"
+	done
+	chsh -s "$(which zsh)" "$(id -nu)"
+
+	curl -fsSL https://starship.rs/install.sh | sh -c
+
+	exit 0
+}
+
 # Add Docker repository to the source list.
-curl -fsSL https://download.docker.com/linux/$linux_id/gpg | apt-key add -
+curl -fsSL "https://download.docker.com/linux/$linux_id/gpg" | apt-key add -
 echo "deb [arch=amd64] https://download.docker.com/linux/$linux_id $linux_codename stable" >> /etc/apt/sources.list.d/docker.list
 
 # Refresh repositories and upgrade installed packages.
@@ -146,7 +173,7 @@ update-locale LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
 locale-gen en_US.UTF-8
 
 # Disable IPv6 for now, pending:
-# - Compatibility with Docker/Docker Swarm.
+# - Compatibility with Docker.
 # - Firewall with ip6tables.
 cat >> /etc/sysctl.conf <<-EOF
 	net.ipv6.conf.all.disable_ipv6 = 1
@@ -216,14 +243,14 @@ cat > /etc/logrotate.d/iptables <<-EOF
 EOF
 
 # Setup common software.
-apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git gnupg2 fail2ban unattended-upgrades docker-ce
+apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git gnupg2 fail2ban unattended-upgrades docker-ce tmux zsh vim
 
 # Setup DO monitoring agent.
 curl -sSL https://insights.nyc3.cdn.digitaloceanspaces.com/install.sh | bash
 
 # Setup Dokku.
 DOKKU_TAG=v0.25.7
-curl -fsSL https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh | bash
+curl -fsSL "https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh" | bash
 
 # Only dump iptables configuration after installing all the software.
 iptables-save > /etc/iptables.conf
@@ -264,9 +291,9 @@ usermod -aG remote dokku
 
 # Create a new administrator user.
 password="$(random)"
-useradd -d /home/$administrator -m -s /bin/bash $administrator
+useradd -d "/home/$administrator" -m -s /bin/bash "$administrator"
 chpasswd <<< "$administrator:$password"
-usermod -aG sudo,remote,docker $administrator
+usermod -aG sudo,remote,docker "$administrator"
 echo "-> $administrator:$password"
 
 # Do not ask for password when sudoing.
@@ -274,9 +301,9 @@ backup /etc/sudoers
 sed -i '/^%sudo/c\%sudo\tALL=(ALL:ALL) NOPASSWD:ALL' /etc/sudoers
 
 # Setup RSA key for secure SSH authorization.
-mkdir -p /home/$administrator/.ssh
-echo "$public_key" >> /home/$administrator/.ssh/authorized_keys
-chown -R $administrator:$administrator /home/$administrator/.ssh
+mkdir -p "/home/$administrator/.ssh"
+echo "$public_key" >> "/home/$administrator/.ssh/authorized_keys"
+chown -R "$administrator:$administrator" "/home/$administrator/.ssh"
 
 # Save a copy.
 backup /etc/ssh/sshd_config
@@ -337,13 +364,13 @@ cat > /etc/ssh/sshd_config <<-EOF
 	# Allow users in 'remote' group to connect.
 	# To add and remove users from the group, respectively:
 	# - usermod -aG remote <username>
-	# - gpasswd -d <username> remote 
+	# - gpasswd -d <username> remote
 	AllowGroups remote
-	
+
 	# Drop clients that idle longer than 10 minutes.
 	ClientAliveInterval 60
 	ClientAliveCountMax 10
-	
+
 	# Listen everywhere.
 	ListenAddress 0.0.0.0
 
@@ -381,13 +408,17 @@ service ssh restart
 
 # Create swap space equivalent to the available memory.
 memory=$(free -m | awk '/^Mem:/{print $2}')
-fallocate -l ${memory}MB /swapfile
+fallocate -l "${memory}MB" /swapfile
 chmod 600 /swapfile
 mkswap /swapfile
 swapon /swapfile
 backup /etc/fstab
 echo '/swapfile none swap sw 0 0' >> /etc/fstab
+
+# Reduce swappiness (how likely the system is to swap memory).
 backup /etc/sysctl.conf
 echo 'vm.swappiness = 10' >> /etc/sysctl.conf
 sysctl -p
 
+# Setup administrative tools as the administrator user.
+sudo -i -u "$administrator" "$0" "$@" --tools
