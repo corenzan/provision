@@ -32,7 +32,7 @@ manual() {
 		    -h --help                       Display this.
 		    -l --log <file>                 Save output to file.
 		    -x --debug                      Print out every command.
-			-n --hostname <hostname>        Server's hostname.
+		    -n --hostname <hostname>        Server's hostname.
 		    -u --username <username>        Administrator's username.
 		    -k --public-key <public-key>    Path or URL to administrator's public key.
 		    -t --tools                      Install administrative tools.
