@@ -32,6 +32,7 @@ manual() {
 		    -h --help                       Display this.
 		    -l --log <file>                 Save output to file.
 		    -x --debug                      Print out every command.
+			-n --hostname <hostname>        Server's hostname.
 		    -u --username <username>        Administrator's username.
 		    -k --public-key <public-key>    Path or URL to administrator's public key.
 		    -t --tools                      Install administrative tools.
@@ -43,7 +44,7 @@ manual() {
 # -
 
 # Parse options.
-flags=$(getopt -n "$0" -o hlxu:k:t -l help,log,debug,username,public-key,tools -- "$@")
+flags=$(getopt -n "$0" -o hlxu:k:tn -l help,log,debug,username,public-key,tools,hostname -- "$@")
 
 # Bail if parsing failed.
 if test $? -ne 0; then
@@ -83,6 +84,11 @@ if test -n "$flags"; then
 				else
 					die "Public key could not be read from '$2'."
 				fi
+				shift
+				shift
+				;;
+			-n|--hostname)
+				hostname="$2"
 				shift
 				shift
 				;;
@@ -172,6 +178,9 @@ export LC_ALL=en_US.UTF-8
 update-locale LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
 locale-gen en_US.UTF-8
 
+# Update hostname.
+hostnamectl set-hostname "$hostname"
+
 # Disable IPv6 for now, pending:
 # - Compatibility with Docker.
 # - Firewall with ip6tables.
@@ -249,8 +258,9 @@ apt-get install -y build-essential apt-transport-https ca-certificates software-
 curl -sSL https://insights.nyc3.cdn.digitaloceanspaces.com/install.sh | bash
 
 # Setup Dokku.
-DOKKU_TAG=v0.25.7
+DOKKU_TAG=v0.27.0
 curl -fsSL "https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh" | bash
+dokku domains:set-global "$hostname"
 
 # Only dump iptables configuration after installing all the software.
 iptables-save > /etc/iptables.conf
@@ -304,6 +314,9 @@ sed -i '/^%sudo/c\%sudo\tALL=(ALL:ALL) NOPASSWD:ALL' /etc/sudoers
 mkdir -p "/home/$administrator/.ssh"
 echo "$public_key" >> "/home/$administrator/.ssh/authorized_keys"
 chown -R "$administrator:$administrator" "/home/$administrator/.ssh"
+
+# Authorize deploys to dokku.
+dokku ssh-keys:add "$administrator" < "/home/$administrator/.ssh/authorized_keys"
 
 # Save a copy.
 backup /etc/ssh/sshd_config
