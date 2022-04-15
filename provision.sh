@@ -17,7 +17,7 @@ backup() {
 }
 
 # Complain and quit.
-die() {
+bail() {
 	echo "$0: $1" >&2
 	exit 1
 }
@@ -82,7 +82,7 @@ if test -n "$flags"; then
 				elif test -f "$2"; then
 					public_key="$(cat "$2")"
 				else
-					die "Public key could not be read from '$2'."
+					bail "Public key could not be read from '$2'."
 				fi
 				shift
 				shift
@@ -104,48 +104,35 @@ if test -n "$flags"; then
 	done
 fi
 
-# Set defaults.
-log=${log:-provision-$(date +"%Y%m%d%H%M%S").log}
-debug=${debug:-0}
-linux_id="$(lsb_release -is | tr '[:upper:]' '[:lower:]')"
-linux_codename="$(lsb_release -cs)"
-
-# -
-# -
-# -
-
 # Enable debug.
 test $debug -ne 0 && set -x
 
-# Whine if mandatory options are missing.
-test -n "$administrator" || die "Option --username is required. See --help."
-test -n "$public_key" || die "Option --public-key is required. See --help."
-
-# Check Linux compatibility.
-test "$linux_id" = "ubuntu" || test "$linux_id" = "debian" || die "Distro '$linux_id' isn't supported."
-
-# Require privilege, i.e. sudo.
-test "$(id -u)" -eq 0 || { sudo "$0" "$flags"; exit 0; }
-
-# Log everything.
-test "$log" = "-" || exec > >(time tee "$log") 2>&1
-
-# Check for required software.
-dependencies="apt-get apt-key curl iptables sysctl service"
-for dep in $dependencies; do
-	if ! type "$dep" >/dev/null 2>&1; then
-		die "$dep could not be found, which is a hard dependency along with: $dependencies."
-	fi
-done
+# Set defaults.
+log="${log:-provision-$(date +"%Y%m%d%H%M%S").log}"
+debug="${debug:-0}"
+distro_id="$(lsb_release -is | tr '[:upper:]' '[:lower:]')"
+distro_name="$(lsb_release -cs)"
 
 # Let debconf know we won't interact.
-export DEBIAN_FRONTEND=noninteractive
+export DEBIAN_FRONTEND="noninteractive"
+
+# Whine if mandatory options are missing.
+test -n "${administrator=}" || bail "Option --username is required. See --help."
+test -n "${public_key=}" || bail "Option --public-key is required. See --help."
+
+# Log everything either to stdout/stderr or to a file.
+test "$log" = "-" || exec 2>&1 | time tee "$log"
+
+# -
+# -
+# -
 
 # Install and configure administrative tools and exit.
 # - tmux
 # - vim
+# - prezto
 # - starship prompt
-test -n "${tools=}" && {
+if test -n "${tools=}"; then
 	git clone https://github.com/gpakosz/.tmux.git "$HOME/.tmux"
 	ln -s -f "$HOME/.tmux/.tmux.conf" "$HOME"
 
@@ -154,18 +141,21 @@ test -n "${tools=}" && {
 
 	git clone --recursive https://github.com/sorin-ionescu/prezto.git "$HOME/.zprezto"
 	find "$HOME/.zprezto/runcoms" -type f -not -name README.md | while read -r rcfile; do
-		ln -s "$rcfile" "$HOME/.${rcfile:t}"
+		ln -s "$rcfile" "$HOME/.$rcfile"
 	done
 	chsh -s "$(which zsh)" "$(id -nu)"
 
 	curl -fsSL https://starship.rs/install.sh | sh -c
 
 	exit 0
-}
+fi
+
+# Check Linux compatibility.
+test "$distro_id" = "ubuntu" || test "$distro_id" = "debian" || bail "Distro '$distro_id' isn't supported."
 
 # Add Docker repository to the source list.
-curl -fsSL "https://download.docker.com/linux/$linux_id/gpg" | apt-key add -
-echo "deb [arch=amd64] https://download.docker.com/linux/$linux_id $linux_codename stable" >> /etc/apt/sources.list.d/docker.list
+curl -fsSL "https://download.docker.com/linux/$distro_id/gpg" | apt-key add -
+echo "deb [arch=amd64] https://download.docker.com/linux/$distro_id $distro_name stable" >> /etc/apt/sources.list.d/docker.list
 
 # Refresh repositories and upgrade installed packages.
 apt-get update
@@ -213,7 +203,7 @@ iptables -A INPUT -p udp --dport 53 -j ACCEPT
 # Allow regular pings.
 iptables -A INPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
 
-# Docker communication.
+# Allow dockerd communication.
 iptables -A INPUT -s 127.0.0.1 -p tcp --dport 2375 -j ACCEPT
 
 # Allow incoming traffic for HTTP, HTTPS and SSH.
