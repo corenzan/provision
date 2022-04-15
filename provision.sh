@@ -153,6 +153,13 @@ fi
 # Check Linux compatibility.
 test "$distro_id" = "ubuntu" || test "$distro_id" = "debian" || bail "Distro '$distro_id' isn't supported."
 
+# Check for required software.
+dependencies="apt-get apt-key curl iptables sysctl service hostnamectl"
+for dep in $dependencies; do
+	if ! type "$dep" >/dev/null 2>&1; then
+		bail "$dep could not be found, which is a hard dependency along with: $dependencies."
+	fi
+done
 # Add Docker repository to the source list.
 curl -fsSL "https://download.docker.com/linux/$distro_id/gpg" | apt-key add -
 echo "deb [arch=amd64] https://download.docker.com/linux/$distro_id $distro_name stable" >> /etc/apt/sources.list.d/docker.list
