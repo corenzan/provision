@@ -143,7 +143,7 @@ if test -n "${tools=}"; then
 	find "$HOME/.zprezto/runcoms" -type f -not -name README.md | while read -r rcfile; do
 		ln -s "$rcfile" "$HOME/.$rcfile"
 	done
-	chsh -s "$(which zsh)" "$(id -nu)"
+	sudo chsh -s "$(which zsh)" "$(id -nu)"
 
 	curl -fsSL https://starship.rs/install.sh | sh -c
 
