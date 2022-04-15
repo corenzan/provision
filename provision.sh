@@ -306,7 +306,7 @@ echo "$public_key" >> "/home/$administrator/.ssh/authorized_keys"
 chown -R "$administrator:$administrator" "/home/$administrator/.ssh"
 
 # Authorize deploys to dokku.
-dokku ssh-keys:add "$administrator" < "/home/$administrator/.ssh/authorized_keys"
+dokku ssh-keys:add "$administrator" "/home/$administrator/.ssh/authorized_keys"
 
 # Save a copy.
 backup /etc/ssh/sshd_config
