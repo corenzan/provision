@@ -245,7 +245,7 @@ EOF
 apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git gnupg2 fail2ban unattended-upgrades docker-ce tmux zsh vim
 
 # Setup DO monitoring agent.
-curl -sSL https://insights.nyc3.cdn.digitaloceanspaces.com/install.sh | bash
+curl -sSL https://insights.nyc3.cdn.digitaloceanspaces.com/install.sh | bash || echo "Failed to install DO monitoring agent. Continuing..."
 
 # Setup Dokku.
 DOKKU_TAG=v0.27.0
