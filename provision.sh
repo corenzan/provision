@@ -160,6 +160,10 @@ for dep in $dependencies; do
 		bail "$dep could not be found, which is a hard dependency along with: $dependencies."
 	fi
 done
+
+# Require privilege, i.e. sudo, after administrative tools block.
+test "$(id -u)" -eq 0 || bail "This script must be run as root."	
+
 # Add Docker repository to the source list.
 curl -fsSL "https://download.docker.com/linux/$distro_id/gpg" | apt-key add -
 echo "deb [arch=amd64] https://download.docker.com/linux/$distro_id $distro_name stable" >> /etc/apt/sources.list.d/docker.list
