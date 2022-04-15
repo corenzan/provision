@@ -29,13 +29,13 @@ manual() {
 		    Initial server configuration for hosting web applications. See https://github.com/corenzan/provision
 
 		OPTIONS
-		    -h --help                       Display this.
-		    -l --log <file>                 Save output to file.
+		    -h --help                       Print out the manual.
+		    -l --log <file>                 Save output to file. Defaults to provision*.log.
 		    -x --debug                      Print out every command.
 		    -n --hostname <hostname>        Server's hostname.
 		    -u --username <username>        Administrator's username.
-		    -k --public-key <public-key>    Path or URL to administrator's public key.
-		    -t --tools                      Install administrative tools.
+		    -k --public-key <public-key>    File path or URL to administrator's public key.
+		    -t --tools                      Just install administrative tools and exit.
 	EOF
 }
 
