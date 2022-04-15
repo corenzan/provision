@@ -44,7 +44,7 @@ manual() {
 # -
 
 # Parse options.
-flags=$(getopt -n "$0" -o hlxu:k:tn -l help,log,debug,username,public-key,tools,hostname -- "$@")
+flags="$(getopt -n "$0" -o hlxu:k:tn: -l help,log,debug,username,public-key,tools,hostname -- "$@")"
 
 # Bail if parsing failed.
 if test $? -ne 0; then
