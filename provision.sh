@@ -36,6 +36,8 @@ manual() {
 		    -u --username <username>        Administrator's username.
 		    -k --public-key <public-key>    File path or URL to administrator's public key.
 		    -t --tools                      Just install administrative tools and exit.
+		       --skip-dokku                 Don't install dokku.
+		       --skip-digital-ocean	        Don't install Digital Ocean's agent.
 	EOF
 }
 
@@ -44,7 +46,7 @@ manual() {
 # -
 
 # Parse options.
-flags="$(getopt -n "$0" -o hlxu:k:tn: -l help,log,debug,username,public-key,tools,hostname -- "$@")"
+flags="$(getopt -n "$0" -o hlxu:k:tn: -l help,log,debug,hostname,username,public-key,tools,skip-dokku,skip-digital-ocean -- "$@")"
 
 # Bail if parsing failed.
 if test $? -ne 0; then
@@ -71,6 +73,11 @@ if test -n "$flags"; then
 				debug=1
 				shift
 				;;
+			-n|--hostname)
+				hostname="$2"
+				shift
+				shift
+				;;
 			-u|--username)
 				administrator="$2"
 				shift
@@ -87,13 +94,16 @@ if test -n "$flags"; then
 				shift
 				shift
 				;;
-			-n|--hostname)
-				hostname="$2"
-				shift
-				shift
-				;;
 			-t|--tools)
 				tools="1"
+				shift
+				;;
+			--skip-dokku)
+				skip_dokku="1"
+				shift
+				;;
+			--skip-digital-ocean)
+				skip_digital_ocean="1"
 				shift
 				;;
 			--)
@@ -255,13 +265,17 @@ EOF
 # Setup common software.
 apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git gnupg2 fail2ban unattended-upgrades docker-ce tmux zsh vim
 
-# Setup DO monitoring agent.
+# Setup Digital Ocean monitoring agent.
+if test -z "${skip_digital_ocean=}"; then
 curl -sSL https://insights.nyc3.cdn.digitaloceanspaces.com/install.sh | bash || echo "Failed to install DO monitoring agent. Continuing..."
+fi
 
 # Setup Dokku.
+if test -z "${skip_dokku=}"; then
 DOKKU_TAG=v0.27.0
 curl -fsSL "https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh" | bash
 dokku domains:set-global "$hostname"
+fi
 
 # Only dump iptables configuration after installing all the software.
 iptables-save > /etc/iptables.conf
@@ -298,7 +312,9 @@ echo "-> root:$password"
 groupadd remote
 
 # Add dokku user to remote group.
+if test -z "${skip_dokku=}"; then
 usermod -aG remote dokku
+fi
 
 # Create a new administrator user.
 password="$(random)"
@@ -317,7 +333,9 @@ echo "$public_key" >> "/home/$administrator/.ssh/authorized_keys"
 chown -R "$administrator:$administrator" "/home/$administrator/.ssh"
 
 # Authorize deploys to dokku.
+if test -z "${skip_dokku=}"; then
 dokku ssh-keys:add "$administrator" "/home/$administrator/.ssh/authorized_keys"
+fi
 
 # Save a copy.
 backup /etc/ssh/sshd_config
