@@ -131,7 +131,7 @@ test -n "${administrator=}" || bail "Option --username is required. See --help."
 test -n "${public_key=}" || bail "Option --public-key is required. See --help."
 
 # Log everything either to stdout/stderr or to a file.
-test "$log" = "-" || exec 2>&1 | time tee "$log"
+test "$log" = "-" || exec 2>&1 | tee "$log"
 
 # -
 # -
@@ -453,4 +453,6 @@ echo 'vm.swappiness = 10' >> /etc/sysctl.conf
 sysctl -p
 
 # Setup administrative tools as the administrator user.
-sudo -i -u "$administrator" "$0" "$@" --tools
+
+# Output execution time.
+times
