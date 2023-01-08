@@ -267,14 +267,14 @@ apt-get install -y build-essential apt-transport-https ca-certificates software-
 
 # Setup Digital Ocean monitoring agent.
 if test -z "${skip_digital_ocean=}"; then
-curl -sSL https://insights.nyc3.cdn.digitaloceanspaces.com/install.sh | bash || echo "Failed to install DO monitoring agent. Continuing..."
+	curl -sSL https://insights.nyc3.cdn.digitaloceanspaces.com/install.sh | bash || echo "Failed to install DO monitoring agent. Continuing..."
 fi
 
 # Setup Dokku.
 if test -z "${skip_dokku=}"; then
-DOKKU_TAG=v0.27.0
-curl -fsSL "https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh" | bash
-dokku domains:set-global "$hostname"
+	DOKKU_TAG=v0.27.0
+	curl -fsSL "https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh" | bash
+	dokku domains:set-global "$hostname"
 fi
 
 # Only dump iptables configuration after installing all the software.
@@ -313,7 +313,7 @@ groupadd remote
 
 # Add dokku user to remote group.
 if test -z "${skip_dokku=}"; then
-usermod -aG remote dokku
+	usermod -aG remote dokku
 fi
 
 # Create a new administrator user.
@@ -334,7 +334,7 @@ chown -R "$administrator:$administrator" "/home/$administrator/.ssh"
 
 # Authorize deploys to dokku.
 if test -z "${skip_dokku=}"; then
-dokku ssh-keys:add "$administrator" "/home/$administrator/.ssh/authorized_keys"
+	dokku ssh-keys:add "$administrator" "/home/$administrator/.ssh/authorized_keys"
 fi
 
 # Save a copy.
