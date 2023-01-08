@@ -115,7 +115,7 @@ if test -n "$flags"; then
 fi
 
 # Enable debug.
-test $debug -ne 0 && set -x
+test "${debug=0}" -ne 0 && set -x
 
 # Set defaults.
 log="${log:-provision-$(date +"%Y%m%d%H%M%S").log}"
