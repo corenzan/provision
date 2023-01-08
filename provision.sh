@@ -151,11 +151,11 @@ if test -n "${tools=}"; then
 
 	git clone --recursive https://github.com/sorin-ionescu/prezto.git "$HOME/.zprezto"
 	find "$HOME/.zprezto/runcoms" -type f -not -name README.md | while read -r rcfile; do
-		ln -s "$rcfile" "$HOME/.$rcfile"
+		ln -s "$rcfile" "$HOME/"
 	done
 	sudo chsh -s "$(which zsh)" "$(id -nu)"
 
-	curl -fsSL https://starship.rs/install.sh | sh -c
+	curl -sS https://starship.rs/install.sh | sh
 
 	exit 0
 fi
@@ -453,6 +453,10 @@ echo 'vm.swappiness = 10' >> /etc/sysctl.conf
 sysctl -p
 
 # Setup administrative tools as the administrator user.
+script="/tmp/$(basename "$0")"
+cp "$0" "$script"
+chown "$administrator:$administrator" "$script"
+sudo -i -u "$administrator" "$script" "$@" --tools
 
 # Output execution time.
 times
