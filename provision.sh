@@ -3,10 +3,10 @@
 # Halt on errors and undeclared variables.
 set -ue
 
-# Generate a random string of length $1.
+# Generate a random string.
 # shellcheck disable=SC2120
 random() {
-	xxd -p -l "${1:-64}" /dev/urandom
+	openssl rand -hex 32
 }
 
 # Make a backup copy of a file.
