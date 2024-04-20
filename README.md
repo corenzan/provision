@@ -43,6 +43,7 @@ chmod +x provision.sh
 ## References
 
 - https://github.com/imthenachoman/How-To-Secure-A-Linux-Server
+- https://infosec.mozilla.org
 
 ## License
 
