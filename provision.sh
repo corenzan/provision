@@ -216,62 +216,112 @@ locale-gen en_US.UTF-8
 # Update hostname.
 hostnamectl set-hostname "$hostname"
 
-# Disable IPv6 for now, pending:
-# - Firewall with ip6tables.
-cat >> /etc/sysctl.conf <<-EOF
-	net.ipv6.conf.all.disable_ipv6 = 1
-	net.ipv6.conf.default.disable_ipv6 = 1
-	net.ipv6.conf.lo.disable_ipv6 = 1
-EOF
-sysctl -p
-cat /proc/sys/net/ipv6/conf/all/disable_ipv6
-
-# Clear firewall rules.
+# Clear rules for IPv4.
 iptables -F
 iptables -t nat -F
 iptables -P INPUT ACCEPT
 iptables -P OUTPUT ACCEPT
 iptables -P FORWARD ACCEPT
 
-# Accept anything from/to loopback interface.
+# Clear rules for IPv6.
+ip6tables -F
+ip6tables -t nat -F
+ip6tables -P INPUT ACCEPT
+ip6tables -P OUTPUT ACCEPT
+ip6tables -P FORWARD ACCEPT
+
+# Accept anything from/to loopback interface in IPv4.
 iptables -A INPUT -i lo -j ACCEPT
 iptables -A OUTPUT -o lo -j ACCEPT
 
-# Keep established or related connections.
+# Accept anything from/to loopback interface in IPv6.
+ip6tables -A INPUT -i lo -j ACCEPT
+ip6tables -A OUTPUT -o lo -j ACCEPT
+
+# Keep established or related connections in IPv4.
 iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 
-# Allow DNS communication.
+# Keep established or related connections in IPv6.
+ip6tables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+
+# Allow DNS communication in IPv4.
 iptables -A INPUT -p tcp --dport 53 -j ACCEPT
 iptables -A INPUT -p udp --dport 53 -j ACCEPT
 
-# Allow regular pings.
+# Allow DNS communication in IPv6.
+ip6tables -A INPUT -p tcp --dport 53 -j ACCEPT
+ip6tables -A INPUT -p udp --dport 53 -j ACCEPT
+
+# Allow regular pings in IPv4.
 iptables -A INPUT -p icmp -m icmp --icmp-type 8 -j ACCEPT
 
-# Allow dockerd communication.
+# Allow regular pings in IPv6.
+ip6tables -A INPUT -p icmpv6 -j ACCEPT
+
+# Allow dockerd communication in IPv4.
 iptables -A INPUT -s 127.0.0.1 -p tcp --dport 2375 -j ACCEPT
 
-# Allow incoming traffic for HTTP, HTTPS and SSH.
+# Allow dockerd communication in IPv6.
+ip6tables -A INPUT -s ::1 -p tcp --dport 2375 -j ACCEPT
+
+# Allow incoming traffic for HTTP, HTTPS and SSH in IPv4.
 iptables -A INPUT -p tcp --dport 80 -j ACCEPT
 iptables -A INPUT -p tcp --dport 443 -j ACCEPT
 iptables -A INPUT -p tcp --dport 822 -j ACCEPT
 
-# Block any other incoming connections.
+# Allow incoming traffic for HTTP, HTTPS and SSH in IPv6.
+ip6tables -A INPUT -p tcp --dport 80 -j ACCEPT
+ip6tables -A INPUT -p tcp --dport 443 -j ACCEPT
+ip6tables -A INPUT -p tcp --dport 822 -j ACCEPT
+
+# Block any other incoming connections in IPv4.
 iptables -A INPUT -j DROP
 
-# Log all the traffic.
+# Block any other incoming connections in IPv6.
+ip6tables -A INPUT -j DROP
+
+# Log all the traffic in IPv4.
 iptables -A INPUT -j LOG --log-tcp-options --log-prefix "[iptables] "
 iptables -A FORWARD -j LOG --log-tcp-options --log-prefix "[iptables] "
+
+# Log all the traffic in IPv6.
+ip6tables -A INPUT -j LOG --log-tcp-options --log-prefix "[ip6tables] "
+ip6tables -A FORWARD -j LOG --log-tcp-options --log-prefix "[ip6tables] "
 
 # Pipe iptables log to its own file.
 cat > /etc/rsyslog.d/10-iptables.conf <<-EOF
 	:msg, contains, "[iptables] " -/var/log/iptables.log
 	& stop
 EOF
+
+# Pipe ip6tables log to its own file.
+cat > /etc/rsyslog.d/10-ip6tables.conf <<-EOF
+	:msg, contains, "[ip6tables] " -/var/log/ip6tables.log
+	& stop
+EOF
+
+# Apply rsyslog configuration.
 service rsyslog restart
 
-# Rotate iptables log so it doesn't fill up the disk.
+# Rotate iptables logs.
 cat > /etc/logrotate.d/iptables <<-EOF
 	/var/log/iptables.log
+	{
+		rotate 30
+		daily
+		missingok
+		notifempty
+		delaycompress
+		compress
+		postrotate
+			invoke-rc.d rsyslog rotate > /dev/null
+		endscript
+	}
+EOF
+
+# Rotate ip6tables logs.
+cat > /etc/logrotate.d/ip6tables <<-EOF
+	/var/log/ip6tables.log
 	{
 		rotate 30
 		daily
@@ -300,8 +350,11 @@ if test -n "${dokku=}"; then
 	dokku domains:set-global "$hostname"
 fi
 
-# Only dump iptables configuration after installing all the software.
+# Save iptables configuration, but only after installing new packages, since they might have modified the rules.
 iptables-save > /etc/iptables.conf
+
+# Save ip6tables configuration, but only after installing new packages, since they might have modified the rules.
+ip6tables-save > /etc/ip6tables.conf
 
 # Load iptables config when network device is up.
 cat > /etc/network/if-up.d/iptables <<-EOF
@@ -309,6 +362,13 @@ cat > /etc/network/if-up.d/iptables <<-EOF
 	iptables-restore < /etc/iptables.conf
 EOF
 chmod +x /etc/network/if-up.d/iptables
+
+# Load ip6tables config when network device is up.
+cat > /etc/network/if-up.d/ip6tables <<-EOF
+	#!/usr/bin/env bash
+	ip6tables-restore < /etc/ip6tables.conf
+EOF
+chmod +x /etc/network/if-up.d/ip6tables
 
 # Write custom Docker configuration.
 # https://docs.docker.com/engine/reference/commandline/dockerd/
