@@ -3,7 +3,7 @@
 # Halt on errors and undeclared variables.
 set -ue
 
-# Generate a random string.
+# Generate a random string of 64 bytes.
 # shellcheck disable=SC2120
 random() {
 	openssl rand -hex 32
@@ -55,7 +55,7 @@ required() {
 test $# -gt 0 || { manual; exit 1; }
 
 # Parse options.
-flags="$(getopt -n "$0" -o hlxn:u:k:t -l help,log,debug,hostname,username,public-key,tools-only,dokku,digital-ocean -- "$@")"
+options="$(getopt -n "$0" -o hlxn:u:k:t -l help,log,debug,hostname,username,public-key,tools-only,dokku,digital-ocean -- "$@")"
 
 # Bail if parsing failed.
 if test $? -ne 0; then
@@ -63,10 +63,10 @@ if test $? -ne 0; then
 fi
 
 # Restore arguments.
-eval set -- "$flags"
+eval set -- "$options"
 
 # Configure script.
-if test -n "$flags"; then
+if test -n "$options"; then
 	while :; do
 		case "$1" in
 			-h|--help)
@@ -104,15 +104,15 @@ if test -n "$flags"; then
 				shift
 				;;
 			-t|--tools-only)
-				tools_only=1
+				tools_only="tools_only"
 				shift
 				;;
 			--dokku)
-				dokku=1
+				dokku="dokku"
 				shift
 				;;
 			--digital-ocean)
-				digital_ocean=1
+				digital_ocean="digital_ocean"
 				shift
 				;;
 			--)
@@ -425,7 +425,7 @@ backup /etc/ssh/sshd_config
 
 # Configure the SSH server.
 cat > /etc/ssh/sshd_config <<-EOF
-# We omit ListenAddress so SSHD listens on all interfaces, both IPv4 and IPv6.
+	# We omit ListenAddress so SSHD listens on all interfaces, both IPv4 and IPv6.
 
 	# Supported HostKey algorithms by order of preference.
 	HostKey /etc/ssh/ssh_host_ed25519_key
@@ -448,7 +448,7 @@ cat > /etc/ssh/sshd_config <<-EOF
 	Protocol 2
 
 	# Forwarding to X11 is considered insecure.
-		X11Forwarding no
+	X11Forwarding no
 
 	# Disable port forwarding.
 	AllowTcpForwarding no
