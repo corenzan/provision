@@ -534,8 +534,8 @@ backup /etc/sysctl.conf
 echo 'vm.swappiness = 10' >> /etc/sysctl.conf
 sysctl -p
 
-# Setup administrative tools as the administrator user.
-su - "$username" -c "$(realpath "$0")" "$@" --tools-only
+# Setup administrative tools as the administrator.
+su - "$username" -c "bash -s -- --tools-only $options" < "$0"
 
 # Output execution time.
 times
