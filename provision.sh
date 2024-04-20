@@ -27,27 +27,36 @@ bail() {
 manual() {
 	cat <<-EOF >&2
 		SYNOPSIS
-		    Initial server configuration for hosting web applications. See https://github.com/corenzan/provision
+		    Initial server configuration for hosting web applications.
+		    See more on https://github.com/corenzan/provision.
 
 		OPTIONS
-		    -h --help                       Print out the manual.
-		    -l --log <file>                 Save output to file. Defaults to provision*.log.
+		    -h --help                       Print out this manual.
+		    -l --log <file>                 Log output to file. Defaults to provision-<timestamp>.log. Use '-' to disable.
 		    -x --debug                      Print out every command.
-		    -n --hostname <hostname>        Server's hostname.
-		    -u --username <username>        Administrator's username.
-		    -k --public-key <public-key>    File path or URL to administrator's public key.
-		    -t --tools                      Just install administrative tools and exit.
-		       --skip-dokku                 Don't install dokku.
-		       --skip-digital-ocean	        Don't install Digital Ocean's agent.
+		    -n --hostname <hostname>        Server's hostname. Required.
+		    -u --username <username>        Administrator's username. Required.
+		    -k --public-key <public-key>    File path or URL to administrator's public key. Required.
+		    -t --tools-only                 Install just the administrative tools and exit.
+		       --dokku                      Install Dokku.
+		       --digital-ocean              Install Digital Ocean's monitoring agent.
 	EOF
+}
+
+# Validate an option was set, bail otherwise.
+required() {
+	test -n "${!1-}" || bail "Option --$(echo "$1" | tr "_" "-") is required. See --help for more information."
 }
 
 # -
 # -
 # -
 
+# Print help if no arguments were passed.
+test $# -gt 0 || { manual; exit 1; }
+
 # Parse options.
-flags="$(getopt -n "$0" -o hlxu:k:tn: -l help,log,debug,hostname,username,public-key,tools,skip-dokku,skip-digital-ocean -- "$@")"
+flags="$(getopt -n "$0" -o hlxn:u:k:t -l help,log,debug,hostname,username,public-key,tools-only,dokku,digital-ocean -- "$@")"
 
 # Bail if parsing failed.
 if test $? -ne 0; then
@@ -80,7 +89,7 @@ if test -n "$flags"; then
 				shift
 				;;
 			-u|--username)
-				administrator="$2"
+				username="$2"
 				shift
 				shift
 				;;
@@ -95,16 +104,16 @@ if test -n "$flags"; then
 				shift
 				shift
 				;;
-			-t|--tools)
-				tools="1"
+			-t|--tools-only)
+				tools_only=1
 				shift
 				;;
-			--skip-dokku)
-				skip_dokku="1"
+			--dokku)
+				dokku=1
 				shift
 				;;
-			--skip-digital-ocean)
-				skip_digital_ocean="1"
+			--digital-ocean)
+				digital_ocean=1
 				shift
 				;;
 			--)
@@ -116,7 +125,7 @@ if test -n "$flags"; then
 fi
 
 # Enable debug.
-test "${debug=0}" -ne 0 && set -x
+test -n "${debug=}" && set -x
 
 # Set defaults.
 log="${log:-provision-$(date +"%Y%m%d%H%M%S").log}"
@@ -127,45 +136,60 @@ distro_name="$(lsb_release -cs)"
 # Let debconf know we won't interact.
 export DEBIAN_FRONTEND="noninteractive"
 
-# Whine if mandatory options are missing.
-test -n "${administrator=}" || bail "Option --username is required. See --help."
-test -n "${public_key=}" || bail "Option --public-key is required. See --help."
-
-# Log everything either to stdout/stderr or to a file.
-test "$log" = "-" || exec 2>&1 | tee "$log"
+# Log everything if a file was set.
+if test "$log" != "-"; then
+	exec &> >(tee "$log")
+fi
 
 # -
 # -
 # -
 
 # Install and configure administrative tools and exit.
-# - tmux
-# - vim
-# - prezto
-# - starship prompt
-if test -n "${tools=}"; then
-	git clone https://github.com/gpakosz/.tmux.git "$HOME/.tmux"
-	ln -s -f "$HOME/.tmux/.tmux.conf" "$HOME"
+if test -n "${tools_only=}"; then
+	# Validate we're not root.
+	test "$(id -u)" -ne 0 || bail "Tools should not be installed as root."
 
+	# Setup tmux.
+	git clone --depth=1 https://github.com/gpakosz/.tmux.git "$HOME/.tmux"
+	backup "$HOME/.tmux.conf"
+	ln -s "$HOME/.tmux/.tmux.conf" "$HOME/.tmux.conf"
+
+	# Setup vim.
 	git clone --depth=1 https://github.com/amix/vimrc.git "$HOME/.vim_runtime"
-	sh ~/.vim_runtime/install_basic_vimrc.sh
+	sh "$HOME/.vim_runtime/install_basic_vimrc.sh"
 
+	# Setup prezto.
 	git clone --recursive https://github.com/sorin-ionescu/prezto.git "$HOME/.zprezto"
 	find "$HOME/.zprezto/runcoms" -type f -not -name README.md | while read -r rcfile; do
-		ln -s "$rcfile" "$HOME/"
+		rcfile_name=".$(basename "$rcfile")"
+		backup "$HOME/$rcfile_name"
+		ln -s "$rcfile" "$HOME/$rcfile_name"
 	done
 	sudo chsh -s "$(which zsh)" "$(id -nu)"
 
-	curl -sS https://starship.rs/install.sh | sh
+	# Setup starship prompt.
+	curl -sS https://starship.rs/install.sh | sh -s -- --yes
+	mkdir -p "$HOME/.config"
+	starship preset plain-text-symbols > "$HOME/.config/starship.toml"
 
+	# Done.
 	exit 0
 fi
+
+# -
+# -
+# -
+
+# Validate --username was set.
+required username
+required public_key
 
 # Check Linux compatibility.
 test "$distro_id" = "ubuntu" || test "$distro_id" = "debian" || bail "Distro '$distro_id' isn't supported."
 
 # Check for required software.
-dependencies="apt-get apt-key curl iptables sysctl service hostnamectl"
+dependencies="apt-get apt-key curl iptables sysctl service hostnamectl locale-gen chpasswd useradd groupadd usermod chown chmod tee cp mv awk times"
 for dep in $dependencies; do
 	if ! type "$dep" >/dev/null 2>&1; then
 		bail "$dep could not be found, which is a hard dependency along with: $dependencies."
@@ -173,7 +197,7 @@ for dep in $dependencies; do
 done
 
 # Require privilege, i.e. sudo, after administrative tools block.
-test "$(id -u)" -eq 0 || bail "This script must be run as root."	
+test "$(id -u)" -eq 0 || bail "This script must be run as root."
 
 # Add Docker repository to the source list.
 curl -fsSL "https://download.docker.com/linux/$distro_id/gpg" | apt-key add -
@@ -194,7 +218,6 @@ locale-gen en_US.UTF-8
 hostnamectl set-hostname "$hostname"
 
 # Disable IPv6 for now, pending:
-# - Compatibility with Docker.
 # - Firewall with ip6tables.
 cat >> /etc/sysctl.conf <<-EOF
 	net.ipv6.conf.all.disable_ipv6 = 1
@@ -251,7 +274,7 @@ service rsyslog restart
 cat > /etc/logrotate.d/iptables <<-EOF
 	/var/log/iptables.log
 	{
-		rotate 7
+		rotate 30
 		daily
 		missingok
 		notifempty
@@ -267,13 +290,13 @@ EOF
 apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git gnupg2 fail2ban unattended-upgrades docker-ce tmux zsh vim
 
 # Setup Digital Ocean monitoring agent.
-if test -z "${skip_digital_ocean=}"; then
+if test -n "${digital_ocean=}"; then
 	curl -sSL https://insights.nyc3.cdn.digitaloceanspaces.com/install.sh | bash || echo "Failed to install DO monitoring agent. Continuing..."
 fi
 
 # Setup Dokku.
-if test -z "${skip_dokku=}"; then
-	DOKKU_TAG=v0.27.0
+if test -n "${dokku=}"; then
+	DOKKU_TAG=v0.34.4
 	curl -fsSL "https://raw.githubusercontent.com/dokku/dokku/$DOKKU_TAG/bootstrap.sh" | bash
 	dokku domains:set-global "$hostname"
 fi
@@ -292,12 +315,12 @@ chmod +x /etc/network/if-up.d/iptables
 # https://docs.docker.com/engine/reference/commandline/dockerd/
 cat > /etc/docker/daemon.json <<-EOF
 	{
-		"live-restore": true,
-		"log-driver": "json-file",
-		"log-opts": {
-			"max-size": "8m",
-			"max-file": "8"
-		}
+	  "live-restore": true,
+	  "log-driver": "json-file",
+	  "log-opts": {
+	    "max-size": "8m",
+	    "max-file": "8"
+	  }
 	}
 EOF
 
@@ -313,29 +336,29 @@ echo "-> root:$password"
 groupadd remote
 
 # Add dokku user to remote group.
-if test -z "${skip_dokku=}"; then
+if test -n "${dokku=}"; then
 	usermod -aG remote dokku
 fi
 
 # Create a new administrator user.
 password="$(random)"
-useradd -d "/home/$administrator" -m -s /bin/bash "$administrator"
-chpasswd <<< "$administrator:$password"
-usermod -aG sudo,remote,docker "$administrator"
-echo "-> $administrator:$password"
+useradd -d "/home/$username" -m -s /bin/bash "$username"
+chpasswd <<< "$username:$password"
+usermod -aG sudo,remote,docker "$username"
+echo "-> $username:$password"
 
 # Do not ask for password when sudoing.
 backup /etc/sudoers
 sed -i '/^%sudo/c\%sudo\tALL=(ALL:ALL) NOPASSWD:ALL' /etc/sudoers
 
 # Setup RSA key for secure SSH authorization.
-mkdir -p "/home/$administrator/.ssh"
-echo "$public_key" >> "/home/$administrator/.ssh/authorized_keys"
-chown -R "$administrator:$administrator" "/home/$administrator/.ssh"
+mkdir -p "/home/$username/.ssh"
+echo "$public_key" >> "/home/$username/.ssh/authorized_keys"
+chown -R "$username:$username" "/home/$username/.ssh"
 
 # Authorize deploys to dokku.
-if test -z "${skip_dokku=}"; then
-	dokku ssh-keys:add "$administrator" "/home/$administrator/.ssh/authorized_keys"
+if test -n "${dokku=}"; then
+	dokku ssh-keys:add "$username" "/home/$username/.ssh/authorized_keys"
 fi
 
 # Save a copy.
@@ -433,8 +456,7 @@ EOF
 # The larger the moduli (key size) the stronger the encryption.
 # Remove all moduli smaller than 3072 bits.
 cp --preserve /etc/ssh/moduli /etc/ssh/moduli.default
-awk '$5 >= 3071' /etc/ssh/moduli | tee /etc/ssh/moduli.tmp
-mv /etc/ssh/moduli.tmp /etc/ssh/moduli
+awk '$5 >= 3071' /etc/ssh/moduli.default > /etc/ssh/moduli
 
 # Restart SSH server.
 service ssh restart
@@ -454,10 +476,7 @@ echo 'vm.swappiness = 10' >> /etc/sysctl.conf
 sysctl -p
 
 # Setup administrative tools as the administrator user.
-script="/tmp/$(basename "$0")"
-cp "$0" "$script"
-chown "$administrator:$administrator" "$script"
-sudo -i -u "$administrator" "$script" "$@" --tools
+sudo -i -u "$username" "$0" "$@" --tools-only
 
 # Output execution time.
 times
