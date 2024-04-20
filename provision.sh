@@ -443,27 +443,35 @@ cat > /etc/ssh/sshd_config <<-EOF
 	# We omit ListenAddress so SSHD listens on all interfaces, both IPv4 and IPv6.
 
 	# Supported HostKey algorithms by order of preference.
-	HostKey /etc/ssh/ssh_host_ed25519_key
 	HostKey /etc/ssh/ssh_host_rsa_key
-	HostKey /etc/ssh/ssh_host_ecdsa_key
+	HostKey /etc/ssh/ssh_host_ed25519_key
+
+	# Select the host key algorithms that the server is willing to use for authentication.
+	HostKeyAlgorithms sk-ssh-ed25519-cert-v01@openssh.com,ssh-ed25519-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,sk-ssh-ed25519@openssh.com,ssh-ed25519,rsa-sha2-512,rsa-sha2-256
+
+	# Select the signature algorithms that the server is willing to use for certificate authority (CA) signatures.
+	CASignatureAlgorithms sk-ssh-ed25519@openssh.com,ssh-ed25519,rsa-sha2-512,rsa-sha2-256
+
+	# Select the key exchange algorithms that the server is willing to use for GSSAPI (Generic Security Services Application Program Interface) authentication.
+	GSSAPIKexAlgorithms gss-curve25519-sha256-,gss-group16-sha512-
+
+	# Select the public key algorithms that the server is willing to accept for authentication.
+	PubkeyAcceptedAlgorithms sk-ssh-ed25519-cert-v01@openssh.com,ssh-ed25519-cert-v01@openssh.com,sk-ssh-ed25519@openssh.com,ssh-ed25519,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-512,rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-256
 
 	# Choose stronger Key Exchange algorithms.
-	KexAlgorithms curve25519-sha256@libssh.org,diffie-hellman-group-exchange-sha256
+	KexAlgorithms sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,gss-curve25519-sha256-,diffie-hellman-group16-sha512,gss-group16-sha512-,diffie-hellman-group18-sha512,diffie-hellman-group-exchange-sha256
 
 	# Use modern ciphers for encryption.
 	Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
 
 	# Use MACs with larger tag sizes.
-	MACs hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com
+	MACs hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,umac-128-etm@openssh.com
 
 	# LogLevel VERBOSE logs user's key fingerprint on login. Needed to have a clear audit track of which key was using to log in.
 	LogLevel VERBOSE
 
 	# Don't let users set environment variables.
 	PermitUserEnvironment no
-
-	# Log sftp level file access (read/write/etc.) that would not be easily logged otherwise.
-	Subsystem sftp internal-sftp -f AUTHPRIV -l INFO
 
 	# Only use the newer more secure protocol.
 	Protocol 2
@@ -484,7 +492,7 @@ cat > /etc/ssh/sshd_config <<-EOF
 	IgnoreRhosts yes
 
 	# Verify hostname matches IP.
-	UseDNS no
+	UseDNS yes
 
 	# TCPKeepAlive is not encrypted.
 	TCPKeepAlive no
@@ -497,6 +505,9 @@ cat > /etc/ssh/sshd_config <<-EOF
 
 	# Don't allow .rhosts or /etc/hosts.equiv.
 	HostbasedAuthentication no
+
+	# Password are insecure.
+	PasswordAuthentication no
 
 	# Allow users in 'remote' group to connect.
 	# To add and remove users from the group, respectively:
@@ -515,16 +526,14 @@ cat > /etc/ssh/sshd_config <<-EOF
 	MaxAuthTries 2
 
 	# Limit connections from the same network.
-	MaxSessions 10
+	MaxSessions 2
 
 	# Allow only one authentication at a time.
-	MaxStartups 1
-
-	# Password are insecure.
-	PasswordAuthentication no
+	MaxStartups 2
 
 	# Silence is golden.
 	DebianBanner no
+	PrintMotd no
 
 	# Change default port.
 	Port 822
@@ -533,16 +542,15 @@ EOF
 # The Diffie-Hellman algorithm is used by SSH to establish a secure connection.
 # The larger the moduli (key size) the stronger the encryption.
 # Remove all moduli smaller than 3072 bits.
-cp --preserve /etc/ssh/moduli /etc/ssh/moduli.default
-awk '$5 >= 3071' /etc/ssh/moduli.default > /etc/ssh/moduli
+cp --preserve /etc/ssh/moduli /etc/ssh/moduli.insecure
+awk '$5 >= 3071' /etc/ssh/moduli.insecure > /etc/ssh/moduli
 
 # Delete existing host keys.
 rm /etc/ssh/ssh_host_*
 
 # Create new host keys.
-ssh-keygen -t ed25519 -f /etc/ssh/ssh_host_ed25519_key -N ""
 ssh-keygen -t rsa -b 4096 -f /etc/ssh/ssh_host_rsa_key -N ""
-ssh-keygen -t ecdsa -b 521 -f /etc/ssh/ssh_host_ecdsa_key -N ""
+ssh-keygen -t ed25519 -f /etc/ssh/ssh_host_ed25519_key -N ""
 
 # Restart SSH server.
 service ssh restart
