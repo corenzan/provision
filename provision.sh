@@ -4,9 +4,10 @@
 set -ue
 
 # Generate a random string of length $1 (64).
+# shellcheck disable=SC2120
 random() {
 	local LC_CTYPE=C
-	tr -dc A-Za-z0-9 < /dev/urandom | head -c 64
+	tr -dc A-Za-z0-9 < /dev/urandom | head -c "${1:-64}"
 }
 
 # Make a backup copy of a file.
