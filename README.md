@@ -31,10 +31,13 @@ Some options are available via command flags. See --help.
 
 ## Usage example
 
-Assuming you're root and you've downloaded the script to your server.
+Assuming you're root:
 
 ```sh
-./provision.sh --username bob --hostname example.com --public-key https://example.com/id_rsa.pub --dokku --digital-ocean
+cd /tmp
+curl -O provision.sh https://raw.githubusercontent.com/corenzan/provision/master/provision.sh
+chmod +x provision.sh
+./provision.sh --username arthur --hostname krusty.corenzan.com --public-key https://gist.githubusercontent.com/haggen/e9f9ef40da12f209ee630be5d7ba3805/raw/06adcfb30c6b434adafbc698b78d9d1a083144c2/id_rsa.pub --dokku --digital-ocean
 ```
 
 ## References
