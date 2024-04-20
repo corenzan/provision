@@ -152,7 +152,8 @@ if test -n "${tools_only=}"; then
 	# Setup tmux.
 	git clone --depth=1 https://github.com/gpakosz/.tmux.git "$HOME/.tmux"
 	backup "$HOME/.tmux.conf"
-	ln -s "$HOME/.tmux/.tmux.conf" "$HOME/.tmux.conf"
+	ln -s -f "$HOME/.tmux/.tmux.conf" "$HOME/.tmux.conf"
+	cp "$HOME/.tmux/.tmux.conf.local" "$HOME/.tmux.conf.local"
 
 	# Setup vim.
 	git clone --depth=1 https://github.com/amix/vimrc.git "$HOME/.vim_runtime"
@@ -166,6 +167,20 @@ if test -n "${tools_only=}"; then
 		ln -s "$rcfile" "$HOME/$rcfile_name"
 	done
 	sudo chsh -s "$(which zsh)" "$(id -nu)"
+
+	# Customize shell.
+	sed -i "s/  'prompt'/  'syntax-highlighting' 'history-substring-search'/" "$HOME/.zpreztorc"
+	sed -i "s/\(zstyle ':prezto:module:prompt' theme\)/#\1/" "$HOME/.zpreztorc"
+	cat >> "$HOME/.zshrc" <<-EOF
+		# starship prompt
+		# https://starship.rs/
+		eval "\$(starship init zsh)"
+
+		# Aliases.
+		alias g=git
+		alias d=docker
+		alias c="docker compose"
+	EOF
 
 	# Setup starship prompt.
 	curl -sS https://starship.rs/install.sh | sh -s -- --yes
