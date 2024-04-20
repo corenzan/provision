@@ -3,11 +3,10 @@
 # Halt on errors and undeclared variables.
 set -ue
 
-# Generate a random string of length $1 (64).
+# Generate a random string of length $1.
 # shellcheck disable=SC2120
 random() {
-	local LC_CTYPE=C
-	tr -dc A-Za-z0-9 < /dev/urandom | head -c "${1:-64}"
+	xxd -p -l "${1:-64}" /dev/urandom
 }
 
 # Make a backup copy of a file.
@@ -189,7 +188,7 @@ required public_key
 test "$distro_id" = "ubuntu" || test "$distro_id" = "debian" || bail "Distro '$distro_id' isn't supported."
 
 # Check for required software.
-dependencies="apt-get apt-key curl iptables sysctl service hostnamectl locale-gen chpasswd useradd groupadd usermod chown chmod tee cp mv awk times"
+dependencies="apt-get apt-key curl iptables sysctl service hostnamectl locale-gen chpasswd useradd groupadd usermod chown chmod times"
 for dep in $dependencies; do
 	if ! type "$dep" >/dev/null 2>&1; then
 		bail "$dep could not be found, which is a hard dependency along with: $dependencies."
