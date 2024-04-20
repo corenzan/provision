@@ -535,7 +535,7 @@ echo 'vm.swappiness = 10' >> /etc/sysctl.conf
 sysctl -p
 
 # Setup administrative tools as the administrator user.
-sudo -i -u "$username" "$0" "$@" --tools-only
+su - "$username" -c "$(realpath "$0")" "$@" --tools-only
 
 # Output execution time.
 times
