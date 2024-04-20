@@ -447,8 +447,14 @@ cat > /etc/ssh/sshd_config <<-EOF
 	HostKey /etc/ssh/ssh_host_rsa_key
 	HostKey /etc/ssh/ssh_host_ecdsa_key
 
-	KexAlgorithms curve25519-sha256@libssh.org,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group-exchange-sha256
+	# Choose stronger Key Exchange algorithms.
+	KexAlgorithms curve25519-sha256@libssh.org,diffie-hellman-group-exchange-sha256
+
+	# Use modern ciphers for encryption.
 	Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
+
+	# Use MACs with larger tag sizes.
+	MACs hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com
 
 	# LogLevel VERBOSE logs user's key fingerprint on login. Needed to have a clear audit track of which key was using to log in.
 	LogLevel VERBOSE
@@ -529,6 +535,14 @@ EOF
 # Remove all moduli smaller than 3072 bits.
 cp --preserve /etc/ssh/moduli /etc/ssh/moduli.default
 awk '$5 >= 3071' /etc/ssh/moduli.default > /etc/ssh/moduli
+
+# Delete existing host keys.
+rm /etc/ssh/ssh_host_*
+
+# Create new host keys.
+ssh-keygen -t ed25519 -f /etc/ssh/ssh_host_ed25519_key -N ""
+ssh-keygen -t rsa -b 4096 -f /etc/ssh/ssh_host_rsa_key -N ""
+ssh-keygen -t ecdsa -b 521 -f /etc/ssh/ssh_host_ecdsa_key -N ""
 
 # Restart SSH server.
 service ssh restart
