@@ -425,6 +425,8 @@ backup /etc/ssh/sshd_config
 
 # Configure the SSH server.
 cat > /etc/ssh/sshd_config <<-EOF
+# We omit ListenAddress so SSHD listens on all interfaces, both IPv4 and IPv6.
+
 	# Supported HostKey algorithms by order of preference.
 	HostKey /etc/ssh/ssh_host_ed25519_key
 	HostKey /etc/ssh/ssh_host_rsa_key
@@ -445,9 +447,8 @@ cat > /etc/ssh/sshd_config <<-EOF
 	# Only use the newer more secure protocol.
 	Protocol 2
 
-	# Dorwarding as X11 is very insecure.
-	# You really shouldn't be running X on a server anyway.
-	X11Forwarding no
+	# Forwarding to X11 is considered insecure.
+		X11Forwarding no
 
 	# Disable port forwarding.
 	AllowTcpForwarding no
@@ -485,9 +486,6 @@ cat > /etc/ssh/sshd_config <<-EOF
 	# Drop clients that idle longer than 10 minutes.
 	ClientAliveInterval 60
 	ClientAliveCountMax 10
-
-	# Listen everywhere.
-	ListenAddress 0.0.0.0
 
 	# Drop if a client take too long to authenticate.
 	LoginGraceTime 10
