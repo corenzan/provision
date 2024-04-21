@@ -395,12 +395,29 @@ if test -n "${dokku=}"; then
 	usermod -aG remote dokku
 fi
 
+# If not using dokku, setup a deploy system.
+if test -z "${dokku=}"; then
+	# Create deploy user.
+	useradd -m deploy
+
+	# By setting the `setgid` bit, created files or directories will inherit group ownership.
+	chmod g+s /home/deploy
+
+	# By setting this ACL, created files or directories will inherit group write permission.
+	setfacl --set u::rwX,g::rwX,o::rX,d:u::rwX,d:g::rwX,d:o::rX /home/deploy
+fi
+
 # Create a new administrator user.
 password="$(random)"
 useradd -d "/home/$username" -m -s /bin/bash "$username"
 chpasswd <<< "$username:$password"
 usermod -aG sudo,remote,docker "$username"
 echo "-> $username:$password"
+
+# If not using dokku, add administrator to deploy group.
+if test -z "${dokku=}"; then
+	usermod -aG deploy "$username"
+fi
 
 # Do not ask for password when sudoing.
 backup /etc/sudoers
