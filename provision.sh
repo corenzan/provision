@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# Halt on errors and undeclared variables.
-set -ue
+# Halt on errors and undeclared variables and print out each command.
+set -uex
 
 # Generate a random string of 64 bytes.
 # shellcheck disable=SC2120
@@ -32,7 +32,6 @@ manual() {
 		OPTIONS
 		    -h --help                       Print out this manual.
 		    -l --log <file>                 Log output to file. Defaults to provision-<timestamp>.log. Use '-' to disable.
-		    -x --debug                      Print out every command.
 		    -n --hostname <hostname>        Server's hostname. Required.
 		    -u --username <username>        Administrator's username. Required.
 		    -k --public-key <public-key>    File path or URL to administrator's public key. Required.
@@ -47,15 +46,11 @@ required() {
 	test -n "${!1-}" || bail "Option --$(echo "$1" | tr "_" "-") is required. See --help for more information."
 }
 
-# -
-# -
-# -
-
 # Print help if no arguments were passed.
 test $# -gt 0 || { manual; exit 1; }
 
 # Parse options.
-options="$(getopt -n "$0" -o hlxn:u:k:t -l help,log,debug,hostname,username,public-key,tools-only,dokku,digital-ocean -- "$@")"
+options="$(getopt -n "$0" -o hln:u:k:t -l help,log,hostname,username,public-key,tools-only,dokku,digital-ocean -- "$@")"
 
 # Bail if parsing failed.
 if test $? -ne 0; then
@@ -76,10 +71,6 @@ if test -n "$options"; then
 			-l|--log)
 				log="$2"
 				shift
-				shift
-				;;
-			-x|--debug)
-				debug=1
 				shift
 				;;
 			-n|--hostname)
@@ -123,26 +114,16 @@ if test -n "$options"; then
 	done
 fi
 
-# Enable debug.
-test -n "${debug=}" && set -x
-
 # Set defaults.
 log="${log:-provision-$(date +"%Y%m%d%H%M%S").log}"
-debug="${debug:-0}"
-distro_id="$(lsb_release -is | tr '[:upper:]' '[:lower:]')"
-distro_name="$(lsb_release -cs)"
-
-# Let debconf know we won't interact.
-export DEBIAN_FRONTEND="noninteractive"
 
 # Log everything if a file was set.
 if test "$log" != "-"; then
 	exec &> >(tee "$log")
 fi
 
-# -
-# -
-# -
+# Let debconf know we won't interact.
+export DEBIAN_FRONTEND="noninteractive"
 
 # Install and configure administrative tools and exit.
 if test -n "${tools_only=}"; then
@@ -191,13 +172,9 @@ if test -n "${tools_only=}"; then
 	exit 0
 fi
 
-# -
-# -
-# -
-
-# Validate --username was set.
-required username
-required public_key
+# Get distro information.
+distro_id="$(lsb_release -is | tr '[:upper:]' '[:lower:]')"
+distro_name="$(lsb_release -cs)"
 
 # Check Linux compatibility.
 test "$distro_id" = "ubuntu" || test "$distro_id" = "debian" || bail "Distro '$distro_id' isn't supported."
@@ -212,6 +189,10 @@ done
 
 # Require privilege, i.e. sudo, after administrative tools block.
 test "$(id -u)" -eq 0 || bail "This script must be run as root."
+
+# Validate username and public-key were set.
+required username
+required public_key
 
 # Add Docker repository to the source list.
 curl -fsSL "https://download.docker.com/linux/$distro_id/gpg" | apt-key add -
