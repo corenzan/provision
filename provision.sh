@@ -37,6 +37,14 @@ put() {
 	mv "$temp" "$1"
 }
 
+# Fetch some content from a URL.
+# -s: silent mode, no progress or results.
+# -S: show error messages if the request fails.
+# --max-time 10: set a time limit of 10 seconds for the request.
+fetch() {
+	curl -fsSL --max-time 10 "$@" 
+}
+
 # Print out an error message and exit.
 fatal() {
 	echo "provision: $1" >&2
@@ -57,11 +65,11 @@ manual() {
 		    -x               Print out each command for debugging. Optional.
 		    -l <file>        Log output to file. Defaults to provision-<timestamp>.log. Use '-' to disable.
 		    -i               Initialize server configuration. Optional.
-		    -n <hostname>    Server's hostname. Required if -i is present.
-		    -r               Create the system user given by -u. Optional.
-		    -u <username>    Administrator's username. Required if -r or -t are present.
-		    -k <public key>  File path or URL to administrator's public key. Required if -r is present.
-		    -t               Configure tmux, vim and zsh with prezto and Starship. Optional.
+		    -r               Create the administrator given by -u. Optional.
+		    -t               Configure tools for the administrator given by -u. Optional.
+		    -n <hostname>    Server's hostname. Required if -i is set.
+		    -u <username>    Administrator's username. Required if either -r or -t are set.
+		    -k <public key>  File path or URL to administrator's public key. Required if -r is set.
 
 		LEGAL
 		    Created by Arthur <arthur@corenzan.com>. Licensed under public domain.
@@ -93,7 +101,7 @@ initialize() {
 	# These are essential commands used throughout the script.
 	dependencies="apt-get update-locale lsb_release dpkg curl sysctl systemctl locale-gen chpasswd useradd groupadd usermod iptables ip6tables free"
 	for dep in $dependencies; do
-		if ! type "$dep" >/dev/null 2>&1; then
+		if ! command -v "$dep" >/dev/null 2>&1; then
 			fatal "$dep could not be found, which is a hard dependency along with: $dependencies."
 		fi
 	done
@@ -101,7 +109,7 @@ initialize() {
 	# Add Docker official repository to the source list.
 	if ! test -f /etc/apt/sources.list.d/docker.list; then
 		# Download Docker's official GPG key to verify package integrity.
-		curl -fsSL "https://download.docker.com/linux/$distro_id/gpg" -o /etc/apt/trusted.gpg.d/docker.asc
+		fetch "https://download.docker.com/linux/$distro_id/gpg" -o /etc/apt/trusted.gpg.d/docker.asc
 		# Fix permissions on the GPG key file.
 		# chmod a+r /etc/apt/keyrings/docker.asc
 		# Add the Docker repository URL to APT's sources.
@@ -273,7 +281,11 @@ initialize() {
 	# zsh: Z shell, an alternative to bash.
 	# vim: Text editor.
 	# acl: Access Control List utilities for finer-grained file permissions.
-	apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git gnupg2 fail2ban unattended-upgrades docker-ce tmux zsh vim acl
+	# btop: Resource monitor for system performance.
+	apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git gnupg2 fail2ban unattended-upgrades docker-ce tmux zsh vim acl btop
+
+	# Download and run the starship installer script.
+	fetch https://starship.rs/install.sh | sh -s -- --yes
 
 	# Write custom Docker configuration.
 	# https://docs.docker.com/engine/reference/commandline/dockerd/
@@ -317,8 +329,8 @@ initialize() {
 
 	# apt-get clean: Removes downloaded package files (.deb) from the local repository.
 	# apt-get autoremove: Removes packages that were automatically installed to satisfy dependencies for other packages and are now no longer needed.
-	apt-get clean
-	apt-get autoremove
+	apt-get clean 
+	apt-get autoremove -y
 
 	# The group 'remote' will be used to control SSH access.
 	if ! id -g remote >/dev/null 2>&1; then
@@ -494,16 +506,26 @@ initialize() {
 	if ! test -f /swapfile; then
 		# Get available RAM in MB.
 		ram=$(free -m | awk '/^Mem:/{print $2}')
-		# Cap swap size at 16GB (16384 MB) to avoid excessive swap on systems with very large RAM.
+
+		# Cap swap size at 16GB to avoid excessive storage usage.
 		test "$ram" -lt 16384 || ram=16384
-		# Create the swap file with dd using blocksize of 1MB.
-		dd if=/dev/zero of=/swapfile bs=1048576 count="$ram"
+		
+		# Try to use fallocate if available (much faster), otherwise use dd.
+		if command -v fallocate >/dev/null 2>&1; then
+			fallocate -l "${ram}M" /swapfile
+		else
+			dd if=/dev/zero of=/swapfile bs=1M count="$ram" status=progress
+		fi
+		
 		# Set restrictive permissions on the swap file.
 		chmod 600 /swapfile
+		
 		# Set up the swap file as a Linux swap area.
 		mkswap /swapfile
+		
 		# Enable the swap file for immediate use.
 		swapon /swapfile
+		
 		# Add an entry to /etc/fstab to make the swap file persistent across reboots.
 		append /etc/fstab <<-EOF
 			/swapfile none swap sw 0 0
@@ -517,6 +539,7 @@ initialize() {
 		append /etc/sysctl.conf <<-EOF
 			vm.swappiness = 10
 		EOF
+
 		# Apply sysctl changes without rebooting.
 		sysctl -p 
 	fi
@@ -542,10 +565,9 @@ register() {
 	# Check for required commands.
 	# useradd: for creating new user accounts.
 	# usermod: for modifying existing user accounts (e.g., adding to groups).
-	# curl: for fetching the public key if a URL is provided.
 	dependencies="useradd usermod curl"
 	for dep in $dependencies; do
-		if ! type "$dep" >/dev/null 2>&1; then # Check if command exists.
+		if ! command -v "$dep" >/dev/null 2>&1; then # Check if command exists.
 			fatal "$dep could not be found, which is a hard dependency along with: $dependencies."
 		fi
 	done
@@ -553,14 +575,9 @@ register() {
 	# Read public key from file or URL.
 	# The construct "${key#http}" removes "http" from the beginning of $key.
 	# If it's different from the original, it means $key started with "http".
+	# If it's a regular file (-f), we just read its contents.
 	if test "${key#http}" != "$key"; then
-		# Fetch public key from URL using curl.
-		# -f: Fail silently on server errors (HTTP 4xx, 5xx).
-		# -s: Silent or quiet mode. Don't show progress meter or error messages.
-		# -L: Follow redirects.
-		# --max-time 10: Set a 10-second timeout for the curl command.
-		key="$(curl -fsL --max-time 10 "$key")"
-	# If it's a regular file (-f), read its content.
+		key="$(fetch "$key")"
 	elif test -f "$key"; then
 		key="$(cat "$key")"
 	else
@@ -572,9 +589,11 @@ register() {
 	# -m: creates the home directory if it doesn't exist.
 	# -s /bin/bash: sets the default login shell to bash.
 	useradd -d "/home/$username" -m -s /bin/bash "$username"
+	
 	# Set a random password for the new user.
 	# While SSH key authentication is enforced, a password is set for completeness and local console access.
 	echo "$username:$(random)" | chpasswd
+	
 	# Add the user to relevant groups:
 	# sudo: allows running commands with root privileges (via sudo).
 	# remote: custom group designated for SSH access in the sshd_config.
@@ -585,16 +604,20 @@ register() {
 	# Setup SSH key for secure authorization.
 	# Create the .ssh directory in the user's home if it doesn't exist (-p creates parent dirs if needed).
 	mkdir -p "/home/$username/.ssh"
+	
 	# Use printf to append the public key to authorized_keys.
 	# This is generally safer than echo, especially if the key string might start with a dash or contain backslashes.
 	# "%s\\n" ensures the key is printed as a string followed by a newline.
 	printf "%s\\n" "$key" >>"/home/$username/.ssh/authorized_keys"
+
 	# Set correct ownership and permissions for the .ssh directory and authorized_keys file.
 	# This is crucial for SSH key authentication to work; SSH is very picky about these permissions.
 	# chown -R recursively sets owner and group to the new user.
 	chown -R "$username:$username" "/home/$username/.ssh"
+
 	# .ssh directory should be 700 (drwx------): only owner can read, write, and execute (access).
 	chmod 700 "/home/$username/.ssh"
+
 	# authorized_keys file should be 600 (-rw-------): only owner can read and write.
 	chmod 600 "/home/$username/.ssh/authorized_keys"
 
@@ -614,7 +637,10 @@ tools() {
 
 	# These tools are user-specific configurations and should be installed as the user.
 	if test "$(id -u)" -eq 0; then
-		su -l "$username" -c "$(realpath "$0") -t -u $username -l $log $debug"
+		# Duplicate the script somewhere the user can access it.
+		provision="$(mktemp)"
+		cp -p "$0" "$provision"
+		su -l "$username" -c "sh $provision -- -t -u $username -l $log $debug"
 		exit $?
 	fi
 
@@ -623,7 +649,7 @@ tools() {
 	# curl: for fetching content from the web.
 	dependencies="git curl"
 	for dep in $dependencies; do
-		if ! type "$dep" >/dev/null 2>&1; then
+		if ! command -v "$dep" >/dev/null 2>&1; then
 			fatal "$dep could not be found, which is a hard dependency along with: $dependencies."
 		fi
 	done
@@ -674,11 +700,6 @@ tools() {
 		# `which zsh` finds the path to the zsh executable.
 		# `id -nu` gets the current username.
 		sudo chsh -s "$(which zsh)" "$(id -nu)"
-
-		# Download and run the starship installer script.
-		# curl -sS: silent mode but show errors.
-		# sh -s -- --yes: pipe to sh, -s reads from stdin, -- passes --yes to the script to auto-confirm.
-		curl -sS https://starship.rs/install.sh | sh -s -- --yes
 
 		# Create the .config directory if it doesn't exist (standard location for user configs).
 		mkdir -p "$HOME/.config"
