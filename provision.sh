@@ -38,6 +38,7 @@ put() {
 }
 
 # Fetch some content from a URL.
+# -f: fail silently on server errors (4xx, 5xx).
 # -s: silent mode, no progress or results.
 # -S: show error messages if the request fails.
 # --max-time 10: set a time limit of 10 seconds for the request.
@@ -362,7 +363,7 @@ initialize() {
 	# This is a convenience but should be used with caution and awareness of security implications.
 	if ! test -f /etc/sudoers.d/nopasswd; then
 		echo "%sudo ALL=(ALL:ALL) NOPASSWD:ALL" >/etc/sudoers.d/nopasswd
-		chmod 440 /etc/sudoers.d/nopasswd # Restrictive permissions for sudoers files.
+		chmod 440 /etc/sudoers.d/nopasswd
 	fi
 
 	# Configure the SSH server.
