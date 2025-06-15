@@ -278,14 +278,19 @@ initialize() {
 	# fail2ban: Intrusion prevention software that monitors log files and bans IPs showing malicious signs.
 	# unattended-upgrades: Automatically installs security updates.
 	# docker-ce: Docker Community Edition.
+	# docker-ce-cli: Command-line interface for Docker.
+	# containerd.io: Container runtime used by Docker.
+	# docker-buildx-plugin: Docker Buildx plugin for building multi-platform images.
+	# docker-compose-plugin: Docker Compose plugin for managing multi-container applications.
 	# tmux: Terminal multiplexer.
 	# zsh: Z shell, an alternative to bash.
+	# fish: User-friendly shell with scripting capabilities.
 	# vim: Text editor.
 	# acl: Access Control List utilities for finer-grained file permissions.
 	# btop: Resource monitor for system performance.
-	apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git gnupg2 fail2ban unattended-upgrades docker-ce tmux zsh vim acl btop
+	apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git gnupg2 fail2ban unattended-upgrades docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin tmux zsh fish vim acl btop
 
-	# Download and run the starship installer script.
+	# Download and run the Starship installer script.
 	fetch https://starship.rs/install.sh | sh -s -- --yes
 
 	# Write custom Docker configuration.
@@ -340,7 +345,7 @@ initialize() {
 
 	# Generates a random password for the root user.
 	# It's good practice to change default/known passwords, even if root login via SSH is disabled.
-	# tee /dev/tty: print out the credentials.
+	# tee /dev/tty: print out the credentials while allowing redirection.
 	echo "root:$(random)" | tee /dev/tty | chpasswd
 
 	# A dedicated user for running applications, separate from administrative users.
@@ -593,7 +598,7 @@ register() {
 	
 	# Set a random password for the new user.
 	# While SSH key authentication is enforced, a password is set for completeness and local console access.
-	# tee /dev/tty: print out the credentials.
+	# tee /dev/tty: print out the credentials while allowing redirection.
 	echo "$username:$(random)" | tee /dev/tty | chpasswd
 
 	# Add the user to relevant groups:
@@ -683,25 +688,11 @@ tools() {
 		sh "$HOME/.vim_runtime/install_basic_vimrc.sh"
 	fi
 
-	if ! test -d "$HOME/.zprezto"; then
-		# Prezto: a configuration framework for Zsh: https://github.com/sorin-ionescu/prezto
-		# Starship: a fast, customizable, cross-shell prompt: https://starship.rs/
-		# Clone Prezto. --recursive is needed to get its submodules.
-		git clone --recursive https://github.com/sorin-ionescu/prezto.git "$HOME/.zprezto"
-
-		# Symlink Prezto's runcom files (zlogin, zlogout, zpreztorc, zprofile, zshenv, zshrc)
-		# from the .zprezto directory to the home directory.
-		# find ... -not -name README.md: excludes README files.
-		find "$HOME/.zprezto/runcoms" -type f -not -name README.md | while read -r rcfile; do
-			rcfile_name=".$(basename "$rcfile")"
-			save "$HOME/$rcfile_name"
-			ln -s -f "$rcfile" "$HOME/$rcfile_name"
-		done
-
-		# Change the current user's default shell to zsh.
-		# `which zsh` finds the path to the zsh executable.
+	if ! test -d "$HOME/.config/fish"; then
+		# Change the current user's default shell to fish.
+		# `which fish` finds the path to the fish executable.
 		# `id -nu` gets the current username.
-		sudo chsh -s "$(which zsh)" "$(id -nu)"
+		sudo chsh -s "$(which fish)" "$(id -nu)"
 
 		# Create the .config directory if it doesn't exist (standard location for user configs).
 		mkdir -p "$HOME/.config"
@@ -710,27 +701,25 @@ tools() {
 		# This avoids issues with missing nerd fonts by default.
 		starship preset plain-text-symbols >"$HOME/.config/starship.toml"
 
-		# Enable syntax-highlighting and history-substring-search modules.
-		sed "s/  'prompt'/  'syntax-highlighting' 'history-substring-search' 'prompt'/" "$HOME/.zpreztorc" | put "$HOME/.zpreztorc"
-		
-		# Comment out the default Prezto prompt theme to allow Starship to take over.
-		# Prezto's prompt module would conflict with Starship if both are active.
-		sed "s/\(zstyle ':prezto:module:prompt' theme\)/#\1/" "$HOME/.zpreztorc" | put "$HOME/.zpreztorc"
-		
-		# Add Starship initialization and custom aliases/settings to .zshrc.
-		cat >>"$HOME/.zshrc" <<-EOF
-			# Initialize Starship prompt for Zsh.
-			# https://starship.rs/
-			eval "\$(starship init zsh)"
+		# Configure the shell.
+		cat >>"$HOME/.config/fish/config.fish" <<-EOF
+			# Disable greeting message.
+			set -U fish_greeting
+			
+			# Sets default editor.
+			set -gx EDITOR "vim"
+			set -gx VISUAL "$EDITOR"
 
-			# CDPATH allows 'cd' to search in specified directories if the target isn't in the current path.
-			# This makes it easier to navigate to /home/apps from anywhere.
-			CDPATH="/home/apps"
+			# Easy navigation to apps directory.
+			set -gx CDPATH "/home/apps"
 
 			# Aliases for common commands.
-			alias g=git
-			alias d=docker
-			alias c="docker compose"
+			abbr g "git"
+			abbr d "docker"
+			abbr c "docker compose"
+
+			# Initialize Starship prompt.
+			starship init fish | source
 		EOF
 	fi
 
