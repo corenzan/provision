@@ -647,7 +647,7 @@ tools() {
 		# Duplicate the script somewhere the user can access it.
 		provision="$(mktemp)"
 		cp -p "$0" "$provision"
-		su -l "$username" -c "sh $provision -- -t -u $username -l $log $debug"
+		su -l "$username" -c "sh $provision -t -u $username -l $log $debug"
 		exit $?
 	fi
 
@@ -694,8 +694,8 @@ tools() {
 		# `id -nu` gets the current username.
 		sudo chsh -s "$(which fish)" "$(id -nu)"
 
-		# Create the .config directory if it doesn't exist (standard location for user configs).
-		mkdir -p "$HOME/.config"
+		# Create fish config directory.
+		mkdir -p "$HOME/.config/fish"
 
 		# Use a predefined starship preset (plain-text-symbols) for the prompt configuration.
 		# This avoids issues with missing nerd fonts by default.
