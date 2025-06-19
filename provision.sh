@@ -76,7 +76,7 @@ manual() {
 		    -n <hostname>               Server's hostname. Required if -i is set.
 		    -u <username>               Administrator's username. Required if either -r or -t are set.
 		    -k <public key>             File path or URL to administrator's public key. Required if -r is set.
-		    -p <port>[:<protocol>] ...  Allow incoming traffic on additional ports, separated by whitespace.
+		    -p <protocol>:<port>[,...]  Allow incoming traffic on additional ports, separated by commas.
 
 		LEGAL
 		    Created by Arthur <arthur@corenzan.com>. Licensed under public domain.
@@ -579,42 +579,41 @@ ports() {
 		fi
 	done
 	
-	for arg in $ports; do
+	echo "$ports" | tr ',' '\n' | while read -r arg; do
+		# Extracted protocol (if specified).
+		protocol="${arg%:*}"
+		# If there isn't a colon, protocol will be empty.
+		if test -z "$protocol"; then
+			fatal "You must specify a protocol. e.g. tcp:80 or udp:53. See -h for help."
+		fi
+
 		# Extracted port number.
-		port="${arg%%:*}"
-		# Delete all digits in $port. If it isn't empty, skip it.
+		port="${arg#*:}"
+		# Delete all digits in $port. If it isn't empty, it's invalid.
 		if test -n "$(echo "$port" | tr -d '0-9')"; then
-			fatal "Invalid port '$port'. Must be only digits."
+			fatal "Port '$port' should be only digits."
 		fi
 		# Test port range.
 		if test "$port" -lt 1 || test "$port" -gt 65535; then
 			fatal "Port '$port' is out of range. Must be between 1-65535."
-		fi
-		# Extracted protocol (if specified).
-		protocol="${arg##*:}" 
-		# If there isn't a colon, protocol will be the same as port, in which case we force empty it.
-		if test "$protocol" = "$arg"; then
-			protocol=""
-		else
-			protocol="-p $protocol"
 		fi
 
 		# Find the line number of the DROP rule (if any).
 		n=$(iptables -L INPUT --line-numbers | awk '/DROP/ {print $1; exit}')
 		if test -n "$n"; then
 			# Insert before DROP (as second to last rule).
-			iptables -I INPUT "$n" --dport "$port" -j ACCEPT $protocol
+			iptables -I INPUT "$n" -p "$protocol" --dport "$port" -j ACCEPT
 		else
 			# Otherwise append.
-			iptables -A INPUT --dport "$port" -j ACCEPT $protocol
+			iptables -A INPUT -p "$protocol" --dport "$port" -j ACCEPT
 		fi
 
 		# Repeat for IPv6.
 		n=$(ip6tables -L INPUT --line-numbers | awk '/DROP/ {print $1; exit}')
 		if test -n "$n"; then
-			ip6tables -I INPUT "$n" --dport "$port" -j ACCEPT $protocol
+			ip6tables -I INPUT "$n" -p "$protocol" --dport "$port" -j ACCEPT
 		else
-			ip6tables -A INPUT --dport "$port" -j ACCEPT $protocol
+			ip6tables -A INPUT -p "$protocol" --dport "$port" -j ACCEPT
 		fi
 	done
 
