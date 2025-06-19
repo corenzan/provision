@@ -1,5 +1,10 @@
 #!/usr/bin/env sh
 
+# Provision - For the journey ahead.
+# POSIX-compliant shell script set up web servers.
+# Created by Arthur <arthur@corenzan.com>, released on public domain.
+# More at https://github.com/corenzan/provision.
+
 # Halt on errors and undeclared variables.
 set -ue
 
@@ -62,15 +67,16 @@ manual() {
 		    provision.sh [options]
 
 		OPTIONS
-		    -h               Print out this manual.
-		    -x               Print out each command for debugging. Optional.
-		    -l <file>        Log output to file. Defaults to provision-<timestamp>.log. Use '-' to disable.
-		    -i               Initialize server configuration. Optional.
-		    -r               Create the administrator given by -u. Optional.
-		    -t               Configure tools for the administrator given by -u. Optional.
-		    -n <hostname>    Server's hostname. Required if -i is set.
-		    -u <username>    Administrator's username. Required if either -r or -t are set.
-		    -k <public key>  File path or URL to administrator's public key. Required if -r is set.
+		    -h                          Print out this manual.
+		    -x                          Print out each command for debugging. Optional.
+		    -l <file>                   Log output to file. Defaults to provision-<timestamp>.log. Use '-' to disable.
+		    -i                          Initialize server configuration. Optional.
+		    -r                          Create the administrator given by -u. Optional.
+		    -t                          Configure tools for the administrator given by -u. Optional.
+		    -n <hostname>               Server's hostname. Required if -i is set.
+		    -u <username>               Administrator's username. Required if either -r or -t are set.
+		    -k <public key>             File path or URL to administrator's public key. Required if -r is set.
+		    -p <port>[:<protocol>] ...  Allow incoming traffic on additional ports, separated by whitespace.
 
 		LEGAL
 		    Created by Arthur <arthur@corenzan.com>. Licensed under public domain.
@@ -553,6 +559,70 @@ initialize() {
 	echo "Done."
 }
 
+ports() {
+	# Require privilege, i.e. sudo.
+	# Checks if the effective user ID is 0 (root).
+	test "$(id -u)" -eq 0 || fatal "This command must be ran as root."
+
+	# Test if ports were specified.
+	if test -z "$ports"; then
+		fatal "No ports specified. See -h for help."
+	fi
+
+	# Check for required software.
+	# git: for cloning repositories.
+	# curl: for fetching content from the web.
+	dependencies="iptables ip6tables awk"
+	for dep in $dependencies; do
+		if ! command -v "$dep" >/dev/null 2>&1; then
+			fatal "$dep could not be found, which is a hard dependency along with: $dependencies."
+		fi
+	done
+	
+	for arg in $ports; do
+		# Extracted port number.
+		port="${arg%%:*}"
+		# Delete all digits in $port. If it isn't empty, skip it.
+		if test -n "$(echo "$port" | tr -d '0-9')"; then
+			fatal "Invalid port '$port'. Must be only digits."
+		fi
+		# Test port range.
+		if test "$port" -lt 1 || test "$port" -gt 65535; then
+			fatal "Port '$port' is out of range. Must be between 1-65535."
+		fi
+		# Extracted protocol (if specified).
+		protocol="${arg##*:}" 
+		# If there isn't a colon, protocol will be the same as port, in which case we force empty it.
+		if test "$protocol" = "$arg"; then
+			protocol=""
+		else
+			protocol="-p $protocol"
+		fi
+
+		# Find the line number of the DROP rule (if any).
+		n=$(iptables -L INPUT --line-numbers | awk '/DROP/ {print $1; exit}')
+		if test -n "$n"; then
+			# Insert before DROP (as second to last rule).
+			iptables -I INPUT "$n" --dport "$port" -j ACCEPT $protocol
+		else
+			# Otherwise append.
+			iptables -A INPUT --dport "$port" -j ACCEPT $protocol
+		fi
+
+		# Repeat for IPv6.
+		n=$(ip6tables -L INPUT --line-numbers | awk '/DROP/ {print $1; exit}')
+		if test -n "$n"; then
+			ip6tables -I INPUT "$n" --dport "$port" -j ACCEPT $protocol
+		else
+			ip6tables -A INPUT --dport "$port" -j ACCEPT $protocol
+		fi
+	done
+
+	# Save iptables configuration after changes.
+	iptables-save > /etc/iptables.conf
+	ip6tables-save > /etc/ip6tables.conf
+}
+
 register() {
 	# Require privilege, i.e. sudo.
 	# Checks if the effective user ID is 0 (root).
@@ -737,6 +807,11 @@ main() {
 		initialize
 	fi
 
+	# If bit 4 is set, the ports command was requested.
+	if test $((mode & 8)) -ne 0; then
+		ports
+	fi
+
 	# If bit 2 is set, the register command was requested.
 	if test $((mode & 2)) -ne 0; then
 		register
@@ -762,10 +837,11 @@ log="provision-$now.log"
 hostname=""
 username=""
 key=""
+ports=""
 mode=0
 
 # Parse global arguments.
-while getopts ":hxl:in:ru:k:t" option; do
+while getopts ":hxl:in:ru:k:t:p:" option; do
 	case "$option" in
 	h)
 		manual
@@ -791,6 +867,10 @@ while getopts ":hxl:in:ru:k:t" option; do
 		;;
 	k)
 		key="$OPTARG"
+		;;
+	p)
+		mode=$((mode | 8))
+		ports="$OPTARG"
 		;;
 	t)
 		mode=$((mode | 4))
