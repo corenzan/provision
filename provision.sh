@@ -840,7 +840,7 @@ ports=""
 mode=0
 
 # Parse global arguments.
-while getopts ":hxl:in:ru:k:t:p:" option; do
+while getopts ":hxl:irtn:u:k:p:" option; do
 	case "$option" in
 	h)
 		manual
