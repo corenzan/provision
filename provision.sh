@@ -48,7 +48,7 @@ put() {
 # -S: show error messages if the request fails.
 # --max-time 10: set a time limit of 10 seconds for the request.
 fetch() {
-	curl -fsSL --max-time 10 "$@" 
+	curl -fsSL --max-time 10 "$@"
 }
 
 # Print out an error message and exit.
@@ -308,11 +308,11 @@ initialize() {
 	if ! test -f /etc/docker/daemon.json; then
 		put /etc/docker/daemon.json <<-EOF
 			{
-			  "live-restore": true, 
-			  "log-driver": "json-file", 
-			  "log-opts": { 
-			    "max-size": "16m", 
-			    "max-file": "4" 
+			  "live-restore": true,
+			  "log-driver": "json-file",
+			  "log-opts": {
+			    "max-size": "16m",
+			    "max-file": "4"
 			  }
 			}
 		EOF
@@ -341,7 +341,7 @@ initialize() {
 
 	# apt-get clean: Removes downloaded package files (.deb) from the local repository.
 	# apt-get autoremove: Removes packages that were automatically installed to satisfy dependencies for other packages and are now no longer needed.
-	apt-get clean 
+	apt-get clean
 	apt-get autoremove -y
 
 	# The group 'remote' will be used to control SSH access.
@@ -521,23 +521,23 @@ initialize() {
 
 		# Cap swap size at 16GB to avoid excessive storage usage.
 		test "$ram" -lt 16384 || ram=16384
-		
+
 		# Try to use fallocate if available (much faster), otherwise use dd.
 		if command -v fallocate >/dev/null 2>&1; then
 			fallocate -l "${ram}M" /swapfile
 		else
 			dd if=/dev/zero of=/swapfile bs=1M count="$ram" status=progress
 		fi
-		
+
 		# Set restrictive permissions on the swap file.
 		chmod 600 /swapfile
-		
+
 		# Set up the swap file as a Linux swap area.
 		mkswap /swapfile
-		
+
 		# Enable the swap file for immediate use.
 		swapon /swapfile
-		
+
 		# Add an entry to /etc/fstab to make the swap file persistent across reboots.
 		append /etc/fstab <<-EOF
 			/swapfile none swap sw 0 0
@@ -553,7 +553,7 @@ initialize() {
 		EOF
 
 		# Apply sysctl changes without rebooting.
-		sysctl -p 
+		sysctl -p
 	fi
 
 	echo "Done."
@@ -578,7 +578,7 @@ ports() {
 			fatal "$dep could not be found, which is a hard dependency along with: $dependencies."
 		fi
 	done
-	
+
 	echo "$ports" | tr ',' '\n' | while read -r arg; do
 		# Extracted protocol (if specified).
 		protocol="${arg%:*}"
@@ -628,12 +628,12 @@ register() {
 	test "$(id -u)" -eq 0 || fatal "This command must be ran as root."
 
 	# Check if username is set.
-	if test -z "$username"; then 
+	if test -z "$username"; then
 		fatal "Username is required."
 	fi
 
 	# Check if the user already exists.
-	if id "$username" >/dev/null 2>&1; then 
+	if id "$username" >/dev/null 2>&1; then
 		fatal "User '$username' already exists."
 	fi
 
@@ -664,7 +664,7 @@ register() {
 	# -m: creates the home directory if it doesn't exist.
 	# -s /bin/bash: sets the default login shell to bash.
 	useradd -d "/home/$username" -m -s /bin/bash "$username"
-	
+
 	# Set a random password for the new user.
 	# While SSH key authentication is enforced, a password is set for completeness and local console access.
 	# tee /dev/tty: print out the credentials while allowing redirection.
@@ -680,7 +680,7 @@ register() {
 	# Setup SSH key for secure authorization.
 	# Create the .ssh directory in the user's home if it doesn't exist (-p creates parent dirs if needed).
 	mkdir -p "/home/$username/.ssh"
-	
+
 	# Use printf to append the public key to authorized_keys.
 	# This is generally safer than echo, especially if the key string might start with a dash or contain backslashes.
 	# "%s\\n" ensures the key is printed as a string followed by a newline.
@@ -702,12 +702,12 @@ register() {
 
 tools() {
 	# Check if username is set.
-	if test -z "$username"; then 
+	if test -z "$username"; then
 		fatal "Username is required."
 	fi
 
 	# Check if the user exists.
-	if ! id "$username" >/dev/null 2>&1; then 
+	if ! id "$username" >/dev/null 2>&1; then
 		fatal "User '$username' doesn't exist."
 	fi
 
@@ -748,36 +748,34 @@ tools() {
 		cp "$HOME/.tmux/.tmux.conf.local" "$HOME/.tmux.conf.local"
 	fi
 
-	if ! test -d "$HOME/.vim_runtime"; then
-		# Uses amix/vimrc configuration: https://github.com/amix/vimrc
-		# This provides a well-regarded set of defaults, plugins, and configurations for Vim.
-		git clone --depth=1 https://github.com/amix/vimrc.git "$HOME/.vim_runtime"
+	# Uses amix/vimrc basic configuration: https://github.com/amix/vimrc
+	fetch https://raw.githubusercontent.com/amix/vimrc/refs/heads/master/vimrcs/basic.vim | put "$HOME/.vimrc"
 
-		# Run the installer script provided by the vimrc project for the basic configuration.
-		sh "$HOME/.vim_runtime/install_basic_vimrc.sh"
+	if ! test -f "$HOME/.config/starship.toml"; then
+		# Create the config directory if it doesn't exist.
+		mkdir -p "$HOME/.config"
+
+		# Use preferred Starship preset.
+		fetch https://gist.github.com/haggen/0445b51d292885449603a354309ef5e8/raw/32e2ea1b7ebb97548bcb2749a4739e84aa3df0b1/starship.toml | put "$HOME/.config/starship.toml"
 	fi
 
 	if ! test -d "$HOME/.config/fish"; then
-		# Change the current user's default shell to fish.
-		# `which fish` finds the path to the fish executable.
+		# Change the current user's default shell to Fish.
+		# `which fish` finds the path to the Fish executable.
 		# `id -nu` gets the current username.
 		sudo chsh -s "$(which fish)" "$(id -nu)"
 
-		# Create fish config directory.
+		# Create Fish config directory.
 		mkdir -p "$HOME/.config/fish"
 
-		# Use a predefined starship preset (plain-text-symbols) for the prompt configuration.
-		# This avoids issues with missing nerd fonts by default.
-		starship preset plain-text-symbols >"$HOME/.config/starship.toml"
-
 		# Configure the shell.
-		cat >>"$HOME/.config/fish/config.fish" <<-EOF
+		put "$HOME/.config/fish/config.fish" <<-EOF
 			# Disable greeting message.
 			set -U fish_greeting
-			
+
 			# Sets default editor.
 			set -gx EDITOR "vim"
-			set -gx VISUAL "$EDITOR"
+			set -gx VISUAL "\$EDITOR"
 
 			# Easy navigation to apps directory.
 			set -gx CDPATH "/home/apps"
@@ -800,7 +798,7 @@ main() {
 	if test $mode -eq 0; then
 		fatal "No command option was specified: -i, -r or -t. See -h for help."
 	fi
-	
+
 	# If bit 1 is set, the initialize command was requested.
 	if test $((mode & 1)) -ne 0; then
 		initialize
@@ -830,8 +828,8 @@ if test $# -eq 0; then
 fi
 
 # Set defaults.
-now="$(date +%s)" 
-debug="" 
+now="$(date +%s)"
+debug=""
 log="provision-$now.log"
 hostname=""
 username=""
@@ -844,13 +842,13 @@ while getopts ":hxl:irtn:u:k:p:" option; do
 	case "$option" in
 	h)
 		manual
-		exit 
+		exit
 		;;
 	x)
-		debug="-x" 
+		debug="-x"
 		;;
 	l)
-		log="$OPTARG" 
+		log="$OPTARG"
 		;;
 	i)
 		mode=$((mode | 1))
