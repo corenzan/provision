@@ -10,7 +10,7 @@ set -ue
 
 # Generate a random string of 64 bytes.
 random() {
-	tr -dc 'A-Za-z0-9' </dev/urandom | head -c 64
+	LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 64
 }
 
 # Save the original file, if it exists.
