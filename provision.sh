@@ -1,14 +1,14 @@
 #!/usr/bin/env sh
 
 # Provision - For the journey ahead.
-# POSIX-compliant shell script set up web servers.
+# POSIX-compliant shell script to set up web servers.
 # Created by Arthur <arthur@corenzan.com>, released on public domain.
 # More at https://github.com/corenzan/provision.
 
 # Halt on errors and undeclared variables.
 set -ue
 
-# Generate a random string of 64 bytes.
+# Generate a random string of 64 characters.
 random() {
 	LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 64
 }
@@ -42,22 +42,22 @@ put() {
 	mv "$temp" "$1"
 }
 
-# Fetch some content from a URL.
-# -f: fail silently on server errors (4xx, 5xx).
-# -s: silent mode, no progress or results.
+# Fetch content from a URL.
+# -f: fail silently on server errors.
+# -s: silent mode.
 # -S: show error messages if the request fails.
 # --max-time 10: set a time limit of 10 seconds for the request.
 fetch() {
 	curl -fsSL --max-time 10 "$@"
 }
 
-# Print out an error message and exit.
+# Print an error message and exit.
 fatal() {
 	echo "provision: $1" >&2
 	exit 1
 }
 
-# Print out the manual.
+# Print the manual.
 manual() {
 	cat <<-EOF >&2
 		SYNOPSIS
@@ -84,7 +84,7 @@ manual() {
 }
 
 initialize() {
-	# Checks if the effective user ID is 0 (root).
+	# Check if the effective user ID is 0 (root).
 	test "$(id -u)" -eq 0 || fatal "This command must be ran as root."
 
 	# Check if the hostname option is set.
@@ -93,19 +93,17 @@ initialize() {
 	fi
 
 	# Get distro information.
-	# lsb_release -is: prints distributor ID (e.g., Ubuntu, Debian) in lowercase.
-	# lsb_release -cs: prints codename (e.g., focal, buster).
-	# dpkg --print-architecture: prints the system architecture (e.g., amd64, arm64).
+	# lsb_release -is: print distributor ID (e.g., Ubuntu, Debian) in lowercase.
+	# lsb_release -cs: print codename (e.g., focal, buster).
+	# dpkg --print-architecture: print the system architecture (e.g., amd64, arm64).
 	distro_id="$(lsb_release -is | tr '[:upper:]' '[:lower:]')"
 	distro_name="$(lsb_release -cs)"
 	arch="$(dpkg --print-architecture)"
 
 	# Check distro compatibility.
-	# This script is designed for Ubuntu or Debian.
 	test "$distro_id" = "ubuntu" || test "$distro_id" = "debian" || fatal "Distro '$distro_id' isn't supported."
 
 	# Check for required software.
-	# These are essential commands used throughout the script.
 	dependencies="apt-get update-locale lsb_release dpkg curl sysctl systemctl locale-gen chpasswd useradd groupadd usermod iptables ip6tables free"
 	for dep in $dependencies; do
 		if ! command -v "$dep" >/dev/null 2>&1; then
@@ -117,23 +115,18 @@ initialize() {
 	if ! test -f /etc/apt/sources.list.d/docker.list; then
 		# Download Docker's official GPG key to verify package integrity.
 		fetch "https://download.docker.com/linux/$distro_id/gpg" -o /etc/apt/trusted.gpg.d/docker.asc
-		# Fix permissions on the GPG key file.
-		# chmod a+r /etc/apt/keyrings/docker.asc
 		# Add the Docker repository URL to APT's sources.
-		echo "deb [arch=$arch] https://download.docker.com/linux/$distro_id $distro_name stable" > /etc/apt/sources.list.d/docker.list
+		echo "deb [arch=$arch] https://download.docker.com/linux/$distro_id $distro_name stable" >/etc/apt/sources.list.d/docker.list
 	fi
 
 	# This prevents debconf from prompting for user input during package installation/configuration.
 	export DEBIAN_FRONTEND="noninteractive"
 
 	# Refresh repositories and upgrade installed packages.
-	# apt-get update: refreshes the local package list from repositories.
-	# apt-get upgrade: upgrades all currently installed packages to their newest versions.
 	apt-get update
 	apt-get upgrade -y
 
 	# Set locale/encoding.
-	# en_US.UTF-8 is a widely compatible locale supporting English and UTF-8 character encoding.
 	export LANGUAGE=en_US.UTF-8
 	export LC_ALL=en_US.UTF-8
 
@@ -143,16 +136,15 @@ initialize() {
 		locale-gen "$LANGUAGE"
 	fi
 
-	# Sets the system's static hostname.
+	# Set the system's static hostname.
 	if ! test "$(hostnamectl --static)" = "$hostname"; then
 		hostnamectl set-hostname "$hostname"
 	fi
 
 	# Clear rules for IPv4.
-	# -F: Flushes all rules in all chains.
-	# -t nat -F: Flushes all rules in the NAT table.
-	# -P INPUT ACCEPT: Sets the default policy for the INPUT chain to ACCEPT (temporarily).
-	# Similar policies are set for OUTPUT and FORWARD chains.
+	# -F: flush all rules in all chains.
+	# -t nat -F: flush all rules in the NAT table.
+	# -P INPUT ACCEPT: set the default policy for the INPUT chain to ACCEPT (temporarily).
 	# This is done to start with a clean slate before adding our firewall rules.
 	iptables -F
 	iptables -t nat -F
@@ -168,7 +160,6 @@ initialize() {
 	ip6tables -P FORWARD ACCEPT
 
 	# Accept anything from/to loopback interface in IPv4.
-	# The loopback interface (lo) is used for local communication within the host.
 	iptables -A INPUT -i lo -j ACCEPT
 	iptables -A OUTPUT -o lo -j ACCEPT
 
@@ -209,9 +200,9 @@ initialize() {
 	iptables -A INPUT -j DROP
 	ip6tables -A INPUT -j DROP
 
-	# Logs dropped packets (and any other packets reaching the end of INPUT/FORWARD chains) to help with debugging firewall rules.
-	# --log-tcp-options: Logs TCP header options.
-	# --log-prefix: Adds a prefix to log messages for easier identification.
+	# Logs dropped packets to help with debugging firewall rules.
+	# --log-tcp-options: log TCP header options.
+	# --log-prefix: add a prefix to log messages for easier identification.
 	iptables -A INPUT -j LOG --log-tcp-options --log-prefix "[iptables] "
 	iptables -A FORWARD -j LOG --log-tcp-options --log-prefix "[iptables] "
 	ip6tables -A INPUT -j LOG --log-tcp-options --log-prefix "[ip6tables] "
@@ -219,30 +210,30 @@ initialize() {
 
 	# Pipe iptables log to its own file.
 	# Configures rsyslog to write messages containing "[iptables] " to /var/log/iptables.log.
-	# & stop: Prevents these messages from being written to other log files (e.g., /var/log/syslog).
-	cat > /etc/rsyslog.d/10-iptables.conf <<-EOF
+	# & stop: prevents these messages from being written to other log files (e.g., /var/log/syslog).
+	cat >/etc/rsyslog.d/10-iptables.conf <<-EOF
 		:msg, contains, "[iptables] " -/var/log/iptables.log
 		& stop
 	EOF
 
 	# Pipe ip6tables log to its own file.
-	cat > /etc/rsyslog.d/10-ip6tables.conf <<-EOF
+	cat >/etc/rsyslog.d/10-ip6tables.conf <<-EOF
 		:msg, contains, "[ip6tables] " -/var/log/ip6tables.log
 		& stop
 	EOF
 
-	# Restarts rsyslog to apply the new logging rules.
+	# Restart rsyslog to apply the new logging rules.
 	service rsyslog restart
 
 	# Configures logrotate to manage /var/log/iptables.log:
-	# rotate 30: Keep 30 old log files.
-	# daily: Rotate daily.
-	# missingok: Don't error if the log file is missing.
-	# notifempty: Don't rotate if the log file is empty.
-	# delaycompress: Delay compression of the previous log file to the next rotation cycle.
-	# compress: Compress rotated log files.
-	# postrotate: Command to run after rotation (reloads rsyslog).
-	cat > /etc/logrotate.d/iptables <<-EOF
+	# rotate 30: keep 30 old log files.
+	# daily: rotate daily.
+	# missingok: don't error if the log file is missing.
+	# notifempty: don't rotate if the log file is empty.
+	# delaycompress: delay compression of the previous log file to the next rotation cycle.
+	# compress: compress rotated log files.
+	# postrotate: command to run after rotation (reloads rsyslog).
+	cat >/etc/logrotate.d/iptables <<-EOF
 		/var/log/iptables.log
 		{
 			rotate 30
@@ -252,13 +243,13 @@ initialize() {
 			delaycompress
 			compress
 			postrotate
-				invoke-rc.d rsyslog rotate > /dev/null
+				invoke-rc.d rsyslog rotate >/dev/null
 			endscript
 		}
 	EOF
 
 	# Same configuration as for ip6tables logs.
-	cat > /etc/logrotate.d/ip6tables <<-EOF
+	cat >/etc/logrotate.d/ip6tables <<-EOF
 		/var/log/ip6tables.log
 		{
 			rotate 30
@@ -268,43 +259,44 @@ initialize() {
 			delaycompress
 			compress
 			postrotate
-				invoke-rc.d rsyslog rotate > /dev/null
+				invoke-rc.d rsyslog rotate >/dev/null
 			endscript
 		}
 	EOF
 
 	# Install common software.
-	# build-essential: Basic development tools (compiler, make, etc.).
-	# apt-transport-https: Allows APT to use HTTPS repositories.
-	# ca-certificates: Common CA certificates for SSL/TLS.
-	# software-properties-common: Utilities for managing software repositories (e.g., add-apt-repository).
+	# build-essential: basic development tools (compiler, make, etc.).
+	# apt-transport-https: allows APT to use HTTPS repositories.
+	# ca-certificates: common CA certificates for SSL/TLS.
+	# software-properties-common: utilities for managing software repositories (e.g., add-apt-repository).
 	# ntp: Network Time Protocol client for time synchronization.
-	# git: Version control system.
+	# git: version control system.
 	# gnupg2: GNU Privacy Guard for encryption and signing.
-	# fail2ban: Intrusion prevention software that monitors log files and bans IPs showing malicious signs.
-	# unattended-upgrades: Automatically installs security updates.
+	# fail2ban: intrusion prevention software that monitors log files and bans IPs showing malicious signs.
+	# unattended-upgrades: automatically installs security updates.
 	# docker-ce: Docker Community Edition.
-	# docker-ce-cli: Command-line interface for Docker.
-	# containerd.io: Container runtime used by Docker.
+	# docker-ce-cli: command-line interface for Docker.
+	# containerd.io: container runtime used by Docker.
 	# docker-buildx-plugin: Docker Buildx plugin for building multi-platform images.
 	# docker-compose-plugin: Docker Compose plugin for managing multi-container applications.
-	# tmux: Terminal multiplexer.
-	# zsh: Z shell, an alternative to bash.
-	# fish: User-friendly shell with scripting capabilities.
-	# vim: Text editor.
+	# tmux: terminal multiplexer.
+	# zsh: alternative to bash.
+	# fish: alternative to bash.
+	# vim: text editor.
 	# acl: Access Control List utilities for finer-grained file permissions.
-	# btop: Resource monitor for system performance.
-	apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git gnupg2 fail2ban unattended-upgrades docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin tmux zsh fish vim acl btop
+	# btop: resource monitor for system performance.
+	# iptables-persistent: allows iptables rules to be saved and restored across reboots.
+	apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git gnupg2 fail2ban unattended-upgrades docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin tmux zsh fish vim acl btop iptables-persistent
 
 	# Download and run the Starship installer script.
 	fetch https://starship.rs/install.sh | sh -s -- --yes
 
 	# Write custom Docker configuration.
 	# https://docs.docker.com/engine/reference/commandline/dockerd/
-	# live-restore: Allows containers to keep running during daemon upgrades or restarts.
-	# log-driver: Specifies the log driver for containers.
-	# max-size: Maximum size of a log file before it's rotated.
-	# max-file: Maximum number of log files to keep.
+	# live-restore: allows containers to keep running during daemon upgrades or restarts.
+	# log-driver: specifies the log driver for containers.
+	# max-size: maximum size of a log file before it's rotated.
+	# max-file: maximum number of log files to keep.
 	if ! test -f /etc/docker/daemon.json; then
 		put /etc/docker/daemon.json <<-EOF
 			{
@@ -318,29 +310,11 @@ initialize() {
 		EOF
 	fi
 
-	# Save iptables configuration, but only after installing new packages, since they might have modified the rules.
-	# iptables-save outputs the current iptables rules to stdout.
-	iptables-save > /etc/iptables.conf
-	ip6tables-save > /etc/ip6tables.conf
+	# Save iptables configuration after changes.
+	netfilter-persistent save
 
-	# Load iptables config when network device is up.
-	# Creates a script in /etc/network/if-up.d/ to restore iptables rules when a network interface comes up.
-	# This ensures firewall rules persist after a reboot.
-	cat > /etc/network/if-up.d/iptables <<-EOF
-		#!/usr/bin/env sh
-		iptables-restore < /etc/iptables.conf
-	EOF
-	chmod +x /etc/network/if-up.d/iptables
-
-	# Load ip6tables config when network device is up.
-	cat > /etc/network/if-up.d/ip6tables <<-EOF
-		#!/usr/bin/env sh
-		ip6tables-restore < /etc/ip6tables.conf
-	EOF
-	chmod +x /etc/network/if-up.d/ip6tables
-
-	# apt-get clean: Removes downloaded package files (.deb) from the local repository.
-	# apt-get autoremove: Removes packages that were automatically installed to satisfy dependencies for other packages and are now no longer needed.
+	# apt-get clean: remove downloaded package files (.deb) from the local repository.
+	# apt-get autoremove: remove packages that were automatically installed to satisfy dependencies for other packages and are now no longer needed.
 	apt-get clean
 	apt-get autoremove -y
 
@@ -349,7 +323,7 @@ initialize() {
 		groupadd remote
 	fi
 
-	# Generates a random password for the root user.
+	# Generate a random password for the root user.
 	# It's good practice to change default/known passwords, even if root login via SSH is disabled.
 	# tee /dev/tty: print out the credentials while allowing redirection.
 	echo "root:$(random)" | tee /dev/tty | chpasswd
@@ -364,10 +338,10 @@ initialize() {
 	chmod g+s /home/apps
 
 	# By setting this ACL, created files or directories will inherit group write permission.
-	# u::rwX: User (owner) gets read, write, execute/search.
-	# g::rwX: Group gets read, write, execute/search.
-	# o::rX: Others get read, execute/search.
-	# d:u::rwX, d:g::rwX, d:o::rX: Default ACLs for new files/directories created within /home/apps.
+	# u::rwX: user (owner) gets read, write, execute/search.
+	# g::rwX: group gets read, write, execute/search.
+	# o::rX: others get read, execute/search.
+	# d:u::rwX, d:g::rwX, d:o::rX: default ACLs for new files/directories created within /home/apps.
 	setfacl --set u::rwX,g::rwX,o::rX,d:u::rwX,d:g::rwX,d:o::rX /home/apps
 
 	# Allows users in the 'sudo' group to run commands as root without entering a password.
@@ -386,7 +360,6 @@ initialize() {
 
 			# Supported HostKey algorithms by order of preference.
 			# These are the private keys the server uses to identify itself to clients.
-			# RSA and ED25519 are strong, modern algorithms.
 			HostKey /etc/ssh/ssh_host_rsa_key
 			HostKey /etc/ssh/ssh_host_ed25519_key
 
@@ -425,7 +398,6 @@ initialize() {
 			LogLevel VERBOSE
 
 			# Don't let users set environment variables via SSH.
-			# This can prevent some potential security risks.
 			PermitUserEnvironment no
 
 			# Forwarding to X11 is considered insecure as it can be exploited.
@@ -448,7 +420,6 @@ initialize() {
 			AllowAgentForwarding no
 
 			# Forbid root sessions.
-			# Disallows direct root login via SSH, a common security best practice.
 			PermitRootLogin no
 
 			# Password are insecure.
@@ -456,15 +427,14 @@ initialize() {
 			PasswordAuthentication no
 
 			# Allow users in 'remote' group to connect.
-			# Restricts SSH access to users who are members of the 'remote' group.
 			# To add and remove users from the group, respectively:
 			# - usermod -aG remote <username>
 			# - gpasswd -d <username> remote
 			AllowGroups remote
 
 			# Drop idle clients.
-			# ClientAliveInterval: Sends a keep-alive message every 60 seconds.
-			# ClientAliveCountMax: Disconnects after 30 unanswered keep-alive messages (30*60 = 30 minutes).
+			# ClientAliveInterval: sends a keep-alive message every 60 seconds.
+			# ClientAliveCountMax: disconnects after 30 unanswered keep-alive messages (30*60 = 30 minutes).
 			ClientAliveInterval 60
 			ClientAliveCountMax 30
 
@@ -478,12 +448,12 @@ initialize() {
 			MaxSessions 2
 
 			# Allow only one authentication at a time.
-			# MaxStartups: Maximum number of concurrent unauthenticated connections.
+			# MaxStartups: maximum number of concurrent unauthenticated connections.
 			# The default is "10:30:100", this is more restrictive.
 			MaxStartups 2
 
-			# DebianBanner no: Disables display of the Debian-specific banner.
-			# PrintMotd no: Disables display of the message of the day (MOTD).
+			# DebianBanner no: disable display of the Debian-specific banner.
+			# PrintMotd no: disable display of the message of the day (MOTD).
 			DebianBanner no
 			PrintMotd no
 
@@ -503,14 +473,14 @@ initialize() {
 
 	# Re-create existing host keys.
 	# This ensures strong, fresh host keys are used.
-	# -t rsa -b 4096: Generates a 4096-bit RSA key.
-	# -t ed25519: Generates an Ed25519 key (modern, fast, and secure).
-	# -N "": Sets an empty passphrase for the key.
+	# -t rsa -b 4096: generates a 4096-bit RSA key.
+	# -t ed25519: generates an Ed25519 key (modern, fast, and secure).
+	# -N "": sets an empty passphrase for the key.
 	rm -f /etc/ssh/ssh_host_*
 	ssh-keygen -t rsa -b 4096 -f /etc/ssh/ssh_host_rsa_key -N ""
 	ssh-keygen -t ed25519 -f /etc/ssh/ssh_host_ed25519_key -N ""
 
-	# Applies the new SSH configuration and host keys.
+	# Apply the new SSH configuration and host keys.
 	systemctl restart ssh
 
 	# Allocate swap space equivalent to the available memory up to 16GB.
@@ -561,7 +531,6 @@ initialize() {
 
 ports() {
 	# Require privilege, i.e. sudo.
-	# Checks if the effective user ID is 0 (root).
 	test "$(id -u)" -eq 0 || fatal "This command must be ran as root."
 
 	# Test if ports were specified.
@@ -570,8 +539,6 @@ ports() {
 	fi
 
 	# Check for required software.
-	# git: for cloning repositories.
-	# curl: for fetching content from the web.
 	dependencies="iptables ip6tables awk"
 	for dep in $dependencies; do
 		if ! command -v "$dep" >/dev/null 2>&1; then
@@ -618,13 +585,11 @@ ports() {
 	done
 
 	# Save iptables configuration after changes.
-	iptables-save > /etc/iptables.conf
-	ip6tables-save > /etc/ip6tables.conf
+	netfilter-persistent save
 }
 
 register() {
 	# Require privilege, i.e. sudo.
-	# Checks if the effective user ID is 0 (root).
 	test "$(id -u)" -eq 0 || fatal "This command must be ran as root."
 
 	# Check if username is set.
@@ -638,8 +603,6 @@ register() {
 	fi
 
 	# Check for required commands.
-	# useradd: for creating new user accounts.
-	# usermod: for modifying existing user accounts (e.g., adding to groups).
 	dependencies="useradd usermod curl"
 	for dep in $dependencies; do
 		if ! command -v "$dep" >/dev/null 2>&1; then # Check if command exists.
@@ -660,9 +623,9 @@ register() {
 	fi
 
 	# Create the new user.
-	# -d /home/$username: sets the user's home directory.
-	# -m: creates the home directory if it doesn't exist.
-	# -s /bin/bash: sets the default login shell to bash.
+	# -d /home/$username: set the user's home directory.
+	# -m: create the home directory if it doesn't exist.
+	# -s /bin/bash: set the default login shell to bash.
 	useradd -d "/home/$username" -m -s /bin/bash "$username"
 
 	# Set a random password for the new user.
@@ -721,8 +684,6 @@ tools() {
 	fi
 
 	# Check for required software.
-	# git: for cloning repositories.
-	# curl: for fetching content from the web.
 	dependencies="git curl"
 	for dep in $dependencies; do
 		if ! command -v "$dep" >/dev/null 2>&1; then
@@ -733,7 +694,7 @@ tools() {
 	if ! test -d "$HOME/.tmux"; then
 		# Uses gpakosz/.tmux configuration: https://github.com/gpakosz/.tmux
 		# This is a popular and comprehensive tmux configuration.
-		# --depth=1: clones only the latest commit, making the clone faster and smaller.
+		# --depth=1: clone only the latest commit, making the clone faster and smaller.
 		git clone --depth=1 https://github.com/gpakosz/.tmux.git "$HOME/.tmux"
 
 		# Save a copy of the original .tmux.conf if it exists.
@@ -773,7 +734,7 @@ tools() {
 			# Disable greeting message.
 			set -U fish_greeting
 
-			# Sets default editor.
+			# Set default editor.
 			set -gx EDITOR "vim"
 			set -gx VISUAL "\$EDITOR"
 
