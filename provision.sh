@@ -177,6 +177,9 @@ initialize() {
 	iptables -A INPUT -p icmp -j ACCEPT
 	ip6tables -A INPUT -p icmpv6 -j ACCEPT
 
+	# Allow receiving DHCPv6 server replies.
+	ip6tables -A INPUT -p udp --dport 546 -j ACCEPT
+
 	# Allow dockerd communication in IPv4.
 	# Port 2375 is the default unencrypted Docker daemon port.
 	# This rule restricts access to localhost (127.0.0.1) for security.
