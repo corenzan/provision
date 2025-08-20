@@ -276,7 +276,7 @@ initialize() {
 	# apt-transport-https: allows APT to use HTTPS repositories.
 	# ca-certificates: common CA certificates for SSL/TLS.
 	# software-properties-common: utilities for managing software repositories (e.g., add-apt-repository).
-	# ntp: Network Time Protocol client for time synchronization.
+	# chrony: for time synchronization.
 	# git: version control system.
 	# gnupg2: GNU Privacy Guard for encryption and signing.
 	# fail2ban: intrusion prevention software that monitors log files and bans IPs showing malicious signs.
