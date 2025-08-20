@@ -42,6 +42,15 @@ put() {
 	mv "$temp" "$1"
 }
 
+# Check for required dependencies.
+depends() {
+	for dep in "$@"; do
+		if ! command -v "$dep" >/dev/null 2>&1; then
+			fatal "$dep is required and could not be found."
+		fi
+	done
+}
+
 # Fetch content from a URL.
 # -f: fail silently on server errors.
 # -s: silent mode.
@@ -104,12 +113,7 @@ initialize() {
 	test "$distro_id" = "ubuntu" || test "$distro_id" = "debian" || fatal "Distro '$distro_id' isn't supported."
 
 	# Check for required software.
-	dependencies="apt-get update-locale lsb_release dpkg curl sysctl systemctl locale-gen chpasswd useradd groupadd usermod iptables ip6tables free"
-	for dep in $dependencies; do
-		if ! command -v "$dep" >/dev/null 2>&1; then
-			fatal "$dep could not be found, which is a hard dependency along with: $dependencies."
-		fi
-	done
+	depends curl lsb_release update-locale locale-gen chpasswd iptables ip6tables netfilter-persistent
 
 	# Add Docker official repository to the source list.
 	if ! test -f /etc/apt/sources.list.d/docker.list; then
@@ -289,7 +293,7 @@ initialize() {
 	# acl: Access Control List utilities for finer-grained file permissions.
 	# btop: resource monitor for system performance.
 	# iptables-persistent: allows iptables rules to be saved and restored across reboots.
-	apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common ntp git gnupg2 fail2ban unattended-upgrades docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin tmux zsh fish vim acl btop iptables-persistent
+	apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common chrony git gnupg2 fail2ban unattended-upgrades docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin tmux zsh fish vim acl btop iptables-persistent
 
 	# Download and run the Starship installer script.
 	fetch https://starship.rs/install.sh | sh -s -- --yes
@@ -542,12 +546,7 @@ ports() {
 	fi
 
 	# Check for required software.
-	dependencies="iptables ip6tables awk"
-	for dep in $dependencies; do
-		if ! command -v "$dep" >/dev/null 2>&1; then
-			fatal "$dep could not be found, which is a hard dependency along with: $dependencies."
-		fi
-	done
+	depends iptables ip6tables netfilter-persistent
 
 	echo "$ports" | tr ',' '\n' | while read -r arg; do
 		# Extracted protocol (if specified).
@@ -605,13 +604,8 @@ register() {
 		fatal "User '$username' already exists."
 	fi
 
-	# Check for required commands.
-	dependencies="useradd usermod curl"
-	for dep in $dependencies; do
-		if ! command -v "$dep" >/dev/null 2>&1; then # Check if command exists.
-			fatal "$dep could not be found, which is a hard dependency along with: $dependencies."
-		fi
-	done
+	# Check for required non-standard commands.
+	depends curl
 
 	# Read public key from file or URL.
 	# The construct "${key#http}" removes "http" from the beginning of $key.
@@ -662,8 +656,6 @@ register() {
 
 	# authorized_keys file should be 600 (-rw-------): only owner can read and write.
 	chmod 600 "/home/$username/.ssh/authorized_keys"
-
-	echo "Done."
 }
 
 tools() {
@@ -686,13 +678,8 @@ tools() {
 		exit $?
 	fi
 
-	# Check for required software.
-	dependencies="git curl"
-	for dep in $dependencies; do
-		if ! command -v "$dep" >/dev/null 2>&1; then
-			fatal "$dep could not be found, which is a hard dependency along with: $dependencies."
-		fi
-	done
+	# Check for required non-standard commands.
+	depends git curl
 
 	if ! test -d "$HOME/.tmux"; then
 		# Uses gpakosz/.tmux configuration: https://github.com/gpakosz/.tmux
@@ -753,8 +740,6 @@ tools() {
 			starship init fish | source
 		EOF
 	fi
-
-	echo "Done."
 }
 
 main() {
