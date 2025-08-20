@@ -415,12 +415,16 @@ initialize() {
 			GatewayPorts no # Prevents remote hosts from connecting to forwarded ports.
 			PermitTunnel no # Disables tun device forwarding.
 
-			# Verify hostname matches IP.
-			# Helps prevent DNS spoofing attacks, but can cause issues if DNS is not properly configured.
-			UseDNS yes
+			# Don't verify hostname of the connecting client.
+			# Prevents DNS spoofing attacks and speeds up the process.
+			UseDNS no
 
 			# TCPKeepAlive is not encrypted and can be spoofed. ClientAliveInterval is preferred.
 			TCPKeepAlive no
+
+			# Disable TCP forwarding.
+			# Reduces attack surface and prevents pivoting.
+			AllowTCPForwarding no
 
 			# Disable agent forwarding.
 			# Agent forwarding can be risky if the server is compromised.
