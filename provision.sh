@@ -113,7 +113,7 @@ initialize() {
 	test "$distro_id" = "ubuntu" || test "$distro_id" = "debian" || fatal "Distro '$distro_id' isn't supported."
 
 	# Check for required software.
-	depends curl lsb_release update-locale locale-gen chpasswd iptables ip6tables netfilter-persistent
+	depends curl lsb_release update-locale locale-gen chpasswd iptables ip6tables
 
 	# Add Docker official repository to the source list.
 	if ! test -f /etc/apt/sources.list.d/docker.list; then
