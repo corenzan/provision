@@ -332,8 +332,8 @@ initialize() {
 
 	# Generate a random password for the root user.
 	# It's good practice to change default/known passwords, even if root login via SSH is disabled.
-	# tee /dev/tty: print out the credentials while allowing redirection.
-	echo "root:$(random)" | tee /dev/tty | chpasswd
+	# tee /dev/fd/1: print out the credentials while allowing redirection.
+	echo "root:$(random)" | tee /dev/fd/1 | chpasswd
 
 	# A dedicated user for running applications, separate from administrative users.
 	if ! id apps >/dev/null 2>&1; then
@@ -631,8 +631,8 @@ register() {
 
 	# Set a random password for the new user.
 	# While SSH key authentication is enforced, a password is set for completeness and local console access.
-	# tee /dev/tty: print out the credentials while allowing redirection.
-	echo "$username:$(random)" | tee /dev/tty | chpasswd
+	# tee /dev/fd/1: print out the credentials while allowing redirection.
+	echo "$username:$(random)" | tee /dev/fd/1 | chpasswd
 
 	# Add the user to relevant groups:
 	# sudo: allows running commands with root privileges (via sudo).
