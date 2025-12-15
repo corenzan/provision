@@ -337,7 +337,14 @@ initialize() {
 
 	# A dedicated user for running applications, separate from administrative users.
 	if ! id apps >/dev/null 2>&1; then
-		useradd -m apps # -m creates the home directory.
+		# -m creates the home directory.
+		useradd -m apps
+
+		# Set a random password for the 'apps' user.
+		echo "apps:$(random)" | tee /dev/fd/1 | chpasswd
+
+		# Allow 'apps' user to access SSH and Docker.
+		usermod -aG remote,docker apps
 	fi
 
 	# By setting the 'setgid' bit, created files or directories will inherit group ownership.
@@ -470,6 +477,11 @@ initialize() {
 
 			# Using a non-standard port (822 instead of 22) can help reduce exposure to automated attacks.
 			Port 822
+
+			# Skip permission requirements on the user's home directory so it doesn't conflict with our ACLs rules.
+			# Warning! You should still ensure proper permissions on the .ssh directory and its contents.
+			# e.g. chmod 700 ~/.ssh; chmod 600 ~/.ssh/*
+			StrictModes no
 		EOF
 	fi
 
