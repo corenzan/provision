@@ -332,8 +332,8 @@ initialize() {
 
 	# Generate a random password for the root user.
 	# It's good practice to change default/known passwords, even if root login via SSH is disabled.
-	# tee /dev/fd/1: print out the credentials while allowing redirection.
-	echo "root:$(random)" | tee /dev/fd/1 | chpasswd
+	# tee /dev/tty: print out the credentials to the terminal while piping to chpasswd.
+	echo "root:$(random)" | tee /dev/tty | chpasswd
 
 	# A dedicated user for running applications, separate from administrative users.
 	if ! id apps >/dev/null 2>&1; then
@@ -341,7 +341,7 @@ initialize() {
 		useradd -m apps
 
 		# Set a random password for the 'apps' user.
-		echo "apps:$(random)" | tee /dev/fd/1 | chpasswd
+		echo "apps:$(random)" | tee /dev/tty | chpasswd
 
 		# Allow 'apps' user to access SSH and Docker.
 		usermod -aG remote,docker apps
