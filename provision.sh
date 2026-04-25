@@ -82,9 +82,8 @@ manual() {
 		    -l <file>                   Log output to file. Defaults to provision-<timestamp>.log. Use '-' to disable.
 		    -i                          Initialize server configuration. Optional.
 		    -r                          Create the administrator given by -u. Optional.
-		    -t                          Configure tools for the administrator given by -u. Optional.
 		    -n <hostname>               Server's hostname. Required if -i is set.
-		    -u <username>               Administrator's username. Required if either -r or -t are set.
+		    -u <username>               Administrator's username. Required if -r is set.
 		    -k <public key>             File path or URL to administrator's public key. Required if -r is set.
 		    -p <protocol>:<port>[,...]  Allow incoming traffic on additional ports, separated by commas.
 
@@ -686,94 +685,10 @@ register() {
 	chmod 600 "/home/$username/.ssh/authorized_keys"
 }
 
-tools() {
-	# Check if username is set.
-	if test -z "$username"; then
-		fatal "Username is required."
-	fi
-
-	# Check if the user exists.
-	if ! id "$username" >/dev/null 2>&1; then
-		fatal "User '$username' doesn't exist."
-	fi
-
-	# These tools are user-specific configurations and should be installed as the user.
-	if test "$(id -u)" -eq 0; then
-		# Duplicate the script somewhere the user can access it.
-		provision="$(mktemp)"
-		cp -p "$0" "$provision"
-		su -l "$username" -c "sh $provision -t -u $username -l $log $debug"
-		exit $?
-	fi
-
-	# Check for required non-standard commands.
-	depends git curl
-
-	if ! test -d "$HOME/.tmux"; then
-		# Uses gpakosz/.tmux configuration: https://github.com/gpakosz/.tmux
-		# This is a popular and comprehensive tmux configuration.
-		# --depth=1: clone only the latest commit, making the clone faster and smaller.
-		git clone --depth=1 https://github.com/gpakosz/.tmux.git "$HOME/.tmux"
-
-		# Save a copy of the original .tmux.conf if it exists.
-		save "$HOME/.tmux.conf"
-
-		# Symlink the new .tmux.conf from the cloned repository to the home directory.
-		# -s: create a symbolic link. -f: force (overwrite if exists).
-		ln -s -f "$HOME/.tmux/.tmux.conf" "$HOME/.tmux.conf"
-
-		# Copy the local configuration file for user-specific customizations.
-		# Users should edit .tmux.conf.local, not .tmux.conf directly.
-		cp "$HOME/.tmux/.tmux.conf.local" "$HOME/.tmux.conf.local"
-	fi
-
-	# Uses amix/vimrc basic configuration: https://github.com/amix/vimrc
-	fetch https://raw.githubusercontent.com/amix/vimrc/refs/heads/master/vimrcs/basic.vim | put "$HOME/.vimrc"
-
-	if ! test -f "$HOME/.config/starship.toml"; then
-		# Create the config directory if it doesn't exist.
-		mkdir -p "$HOME/.config"
-
-		# Use preferred Starship preset.
-		fetch https://gist.github.com/haggen/0445b51d292885449603a354309ef5e8/raw/32e2ea1b7ebb97548bcb2749a4739e84aa3df0b1/starship.toml | put "$HOME/.config/starship.toml"
-	fi
-
-	if ! test -d "$HOME/.config/fish"; then
-		# Change the current user's default shell to Fish.
-		# `which fish` finds the path to the Fish executable.
-		# `id -nu` gets the current username.
-		sudo chsh -s "$(which fish)" "$(id -nu)"
-
-		# Create Fish config directory.
-		mkdir -p "$HOME/.config/fish"
-
-		# Configure the shell.
-		put "$HOME/.config/fish/config.fish" <<-EOF
-			# Disable greeting message.
-			set -U fish_greeting
-
-			# Set default editor.
-			set -gx EDITOR "vim"
-			set -gx VISUAL "\$EDITOR"
-
-			# Easy navigation to apps directory.
-			set -gx CDPATH "/home/apps"
-
-			# Aliases for common commands.
-			abbr g "git"
-			abbr d "docker"
-			abbr c "docker compose"
-
-			# Initialize Starship prompt.
-			starship init fish | source
-		EOF
-	fi
-}
-
 main() {
 	# If $mode is 0, it means no command options were specified.
 	if test $mode -eq 0; then
-		fatal "No command option was specified: -i, -r or -t. See -h for help."
+		fatal "No command option was specified: -i or -r. See -h for help."
 	fi
 
 	# If bit 1 is set, the initialize command was requested.
@@ -789,11 +704,6 @@ main() {
 	# If bit 2 is set, the register command was requested.
 	if test $((mode & 2)) -ne 0; then
 		register
-	fi
-
-	# If bit 3 is set, the tools command was requested.
-	if test $((mode & 4)) -ne 0; then
-		tools
 	fi
 }
 
@@ -815,7 +725,7 @@ ports=""
 mode=0
 
 # Parse global arguments.
-while getopts ":hxl:irtn:u:k:p:" option; do
+while getopts ":hxl:irn:u:k:p:" option; do
 	case "$option" in
 	h)
 		manual
@@ -845,9 +755,6 @@ while getopts ":hxl:irtn:u:k:p:" option; do
 	p)
 		mode=$((mode | 8))
 		ports="$OPTARG"
-		;;
-	t)
-		mode=$((mode | 4))
 		;;
 	:)
 		fatal "Missing argument for option -$OPTARG."
