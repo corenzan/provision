@@ -1,7 +1,8 @@
 #!/usr/bin/env sh
 
-# Provision - For the journey ahead.
-# POSIX-compliant shell script to set up web servers.
+# Provision is a POSIX-compliant shell script that helps with
+# the initial configuration required for a production-grade
+# Debian-based server to host websites and applications.
 # Created by Arthur <arthur@corenzan.com>, released on public domain.
 # More at https://github.com/corenzan/provision.
 
@@ -101,6 +102,9 @@ initialize() {
 		fatal "Missing required option for hostname. See -h for help."
 	fi
 
+	# Check for required software.
+	depends curl lsb_release update-locale locale-gen iptables ip6tables
+
 	# Get distro information.
 	# lsb_release -is: print distributor ID (e.g., Ubuntu, Debian) in lowercase.
 	# lsb_release -cs: print codename (e.g., focal, buster).
@@ -111,9 +115,6 @@ initialize() {
 
 	# Check distro compatibility.
 	test "$distro_id" = "ubuntu" || test "$distro_id" = "debian" || fatal "Distro '$distro_id' isn't supported."
-
-	# Check for required software.
-	depends curl lsb_release update-locale locale-gen chpasswd iptables ip6tables
 
 	# Add Docker official repository to the source list.
 	if ! test -f /etc/apt/sources.list.d/docker.list; then
