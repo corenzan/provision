@@ -202,74 +202,18 @@ initialize() {
 	ip6tables -A INPUT -p tcp --dport 443 -j ACCEPT
 	ip6tables -A INPUT -p tcp --dport 822 -j ACCEPT
 
+	# Logs dropped packets to help with debugging firewall rules.
+	# --log-tcp-options: log TCP header options.
+	# --log-prefix: add a prefix to log messages for easier identification.
+	iptables -A INPUT -j LOG --log-tcp-options --log-prefix "iptables: "
+	iptables -A FORWARD -j LOG --log-tcp-options --log-prefix "iptables: "
+	ip6tables -A INPUT -j LOG --log-tcp-options --log-prefix "ip6tables: "
+	ip6tables -A FORWARD -j LOG --log-tcp-options --log-prefix "ip6tables: "
+
 	# This is the default-deny policy for the INPUT chain.
 	# Any traffic not explicitly allowed by previous rules will be dropped.
 	iptables -A INPUT -j DROP
 	ip6tables -A INPUT -j DROP
-
-	# Logs dropped packets to help with debugging firewall rules.
-	# --log-tcp-options: log TCP header options.
-	# --log-prefix: add a prefix to log messages for easier identification.
-	iptables -A INPUT -j LOG --log-tcp-options --log-prefix "[iptables] "
-	iptables -A FORWARD -j LOG --log-tcp-options --log-prefix "[iptables] "
-	ip6tables -A INPUT -j LOG --log-tcp-options --log-prefix "[ip6tables] "
-	ip6tables -A FORWARD -j LOG --log-tcp-options --log-prefix "[ip6tables] "
-
-	# Pipe iptables log to its own file.
-	# Configures rsyslog to write messages containing "[iptables] " to /var/log/iptables.log.
-	# & stop: prevents these messages from being written to other log files (e.g., /var/log/syslog).
-	cat >/etc/rsyslog.d/10-iptables.conf <<-EOF
-		:msg, contains, "[iptables] " -/var/log/iptables.log
-		& stop
-	EOF
-
-	# Pipe ip6tables log to its own file.
-	cat >/etc/rsyslog.d/10-ip6tables.conf <<-EOF
-		:msg, contains, "[ip6tables] " -/var/log/ip6tables.log
-		& stop
-	EOF
-
-	# Restart rsyslog to apply the new logging rules.
-	service rsyslog restart
-
-	# Configures logrotate to manage /var/log/iptables.log:
-	# rotate 30: keep 30 old log files.
-	# daily: rotate daily.
-	# missingok: don't error if the log file is missing.
-	# notifempty: don't rotate if the log file is empty.
-	# delaycompress: delay compression of the previous log file to the next rotation cycle.
-	# compress: compress rotated log files.
-	# postrotate: command to run after rotation (reloads rsyslog).
-	cat >/etc/logrotate.d/iptables <<-EOF
-		/var/log/iptables.log
-		{
-			rotate 30
-			daily
-			missingok
-			notifempty
-			delaycompress
-			compress
-			postrotate
-				invoke-rc.d rsyslog rotate >/dev/null
-			endscript
-		}
-	EOF
-
-	# Same configuration as for ip6tables logs.
-	cat >/etc/logrotate.d/ip6tables <<-EOF
-		/var/log/ip6tables.log
-		{
-			rotate 30
-			daily
-			missingok
-			notifempty
-			delaycompress
-			compress
-			postrotate
-				invoke-rc.d rsyslog rotate >/dev/null
-			endscript
-		}
-	EOF
 
 	# Install common software.
 	# build-essential: basic development tools (compiler, make, etc.).
