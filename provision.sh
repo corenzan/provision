@@ -120,12 +120,23 @@ initialize() {
 	# Check distro compatibility.
 	test "$distro_id" = "ubuntu" || test "$distro_id" = "debian" || fatal "Distro '$distro_id' isn't supported."
 
-	# Add Docker official repository to the source list.
-	if ! test -f /etc/apt/sources.list.d/docker.list; then
-		# Download Docker's official GPG key to verify package integrity.
-		fetch "https://download.docker.com/linux/$distro_id/gpg" -o /etc/apt/trusted.gpg.d/docker.asc
-		# Add the Docker repository URL to APT's sources.
-		echo "deb [arch=$arch] https://download.docker.com/linux/$distro_id $distro_name stable" >/etc/apt/sources.list.d/docker.list
+	# Install the official Docker GPG key.
+	if ! test -f /etc/apt/keyrings/docker.asc; then
+		install -m 0755 -d /etc/apt/keyrings
+		fetch https://download.docker.com/linux/$distro_id/gpg | put /etc/apt/keyrings/docker.asc
+		chmod a+r /etc/apt/keyrings/docker.asc
+	fi
+
+	# Add the official Docker repository to the sources list.
+	if ! test -f /etc/apt/sources.list.d/docker.sources; then
+		put /etc/apt/sources.list.d/docker.sources <<-EOF
+			Types: deb
+			URIs: https://download.docker.com/linux/$distro_id
+			Suites: $distro_name
+			Components: stable
+			Architectures: $arch
+			Signed-By: /etc/apt/keyrings/docker.asc
+		EOF
 	fi
 
 	# This prevents debconf from prompting for user input during package installation/configuration.
