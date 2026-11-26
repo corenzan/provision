@@ -278,6 +278,9 @@ initialize() {
 			  }
 			}
 		EOF
+
+		# Restart the Docker service to apply the new configuration.
+		systemctl restart docker
 	fi
 
 	# Save iptables configuration after changes.
