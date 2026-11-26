@@ -16,9 +16,9 @@ random() {
 
 # Save the original file, if it exists.
 # cp -p preserves the file's mode, ownership, and timestamps.
-save() {
+backup() {
 	if test -f "$1"; then
-		cp -p "$1" "$1.$now"
+		cp -p "$1" "$1.$(date +%s)"
 	fi
 }
 
@@ -27,10 +27,11 @@ save() {
 append() {
 	temp="$(mktemp)"
 	if test -f "$1"; then
-		cat "$1" >"$temp"
+		# cp -p preserves the original mode, ownership and timestamps.
+		cp -p "$1" "$temp"
 	fi
 	cat >>"$temp"
-	save "$1"
+	backup "$1"
 	mv "$temp" "$1"
 }
 
@@ -38,8 +39,12 @@ append() {
 # We use a temporary file to avoid corrupting the file in case of error.
 put() {
 	temp="$(mktemp)"
+	if test -f "$1"; then
+	    # cp -p preserves the original mode, ownership and timestamps.
+		cp -p "$1" "$temp"
+	fi
 	cat >"$temp"
-	save "$1"
+	backup "$1"
 	mv "$temp" "$1"
 }
 
