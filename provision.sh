@@ -9,6 +9,11 @@
 # Halt on errors and undeclared variables.
 set -ue
 
+# Generate a random alphanumeric string of a given length.
+random() {
+	LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c ${1:-8}
+}
+
 # Save the original file, if it exists.
 # cp -p preserves the file's mode, ownership, and timestamps.
 backup() {
@@ -20,7 +25,7 @@ backup() {
 # Safely append to a file.
 # We use a temporary file to avoid corrupting the file in case of error.
 append() {
-	temp="$(mktemp)"
+	temp="/tmp/$(random)"
 	if test -f "$1"; then
 		# cp -p preserves the original mode, ownership and timestamps.
 		cp -p "$1" "$temp"
@@ -33,7 +38,7 @@ append() {
 # Safely replace file contents.
 # We use a temporary file to avoid corrupting the file in case of error.
 put() {
-	temp="$(mktemp)"
+	temp="/tmp/$(random)"
 	if test -f "$1"; then
 	    # cp -p preserves the original mode, ownership and timestamps.
 		cp -p "$1" "$temp"
