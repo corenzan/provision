@@ -315,6 +315,10 @@ initialize() {
 		usermod -aG remote,docker apps
 	fi
 
+	# Setup SSH for the 'apps' user.
+	install -m 700 -o apps -g apps -d /home/apps/.ssh
+	install -m 600 -o apps -g apps /dev/null /home/apps/.ssh/authorized_keys
+
 	# By setting the 'setgid' bit, created files or directories will inherit group ownership.
 	# This is useful for shared directories where multiple users in the 'apps' group might create files.
 	chmod g+s /home/apps
@@ -325,17 +329,6 @@ initialize() {
 	# o::rX: others get read, execute/search.
 	# d:u::rwX, d:g::rwX, d:o::rX: default ACLs for new files/directories created within /home/apps.
 	setfacl --set u::rwX,g::rwX,o::rX,d:u::rwX,d:g::rwX,d:o::rX /home/apps
-
-	# Setup SSH for the 'apps' user.
-	mkdir -p /home/apps/.ssh
-	touch /home/apps/.ssh/authorized_keys
-
-	# Remove ACL from /home/apps/.ssh to protect SSH files.
-	setfacl --remove-all /home/apps/.ssh
-
-	# Fix permissions for SSH files.
-	chmod 700 /home/apps/.ssh
-	chmod 600 /home/apps/.ssh/authorized_keys
 
 	# Allows users in the 'sudo' group to run commands as root without entering a password.
 	# This is a convenience but should be used with caution and awareness of security implications.
