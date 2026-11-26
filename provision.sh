@@ -163,7 +163,7 @@ initialize() {
 	fi
 
 	# Prevent cloud-init from overwriting the hostname during reboots.
-	if ! test -f /etc/cloud/cloud.cfg.d/99_preserve_hostname.cfg; then
+	if test -d /etc/cloud/cloud.cfg.d; then
 		put /etc/cloud/cloud.cfg.d/99_preserve_hostname.cfg <<-EOF
 			preserve_hostname: true
 		EOF
