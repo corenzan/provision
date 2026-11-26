@@ -164,79 +164,70 @@ initialize() {
 		EOF
 	fi
 
-	# Clear rules for IPv4.
-	# -F: flush all rules in all chains.
-	# -t nat -F: flush all rules in the NAT table.
-	# -P INPUT ACCEPT: set the default policy for the INPUT chain to ACCEPT (temporarily).
-	# This is done to start with a clean slate before adding our firewall rules.
-	iptables -F
-	iptables -t nat -F
-	iptables -P INPUT ACCEPT
-	iptables -P OUTPUT ACCEPT
-	iptables -P FORWARD ACCEPT
+	for iptables in iptables ip6tables; do
+		# Clear rules.
+		# -F: flush all rules in all chains.
+		# -t nat -F: flush all rules in the NAT table.
+		# -P INPUT ACCEPT: set the default policy for the INPUT chain to ACCEPT (temporarily).
+		# This is done to start with a clean slate before adding our firewall rules.
+		"$iptables" -F
+		"$iptables" -t nat -F
+		"$iptables" -P INPUT ACCEPT
+		"$iptables" -P OUTPUT ACCEPT
+		"$iptables" -P FORWARD ACCEPT
 
-	# Same as above, but for IPv6.
-	ip6tables -F
-	ip6tables -t nat -F
-	ip6tables -P INPUT ACCEPT
-	ip6tables -P OUTPUT ACCEPT
-	ip6tables -P FORWARD ACCEPT
+		# Loopback (covers 127.0.0.1 and ::1, including local Docker daemon communication).
+		"$iptables" -A INPUT -i lo -j ACCEPT
+		"$iptables" -A OUTPUT -o lo -j ACCEPT
 
-	# Accept anything from/to loopback interface in IPv4.
-	iptables -A INPUT -i lo -j ACCEPT
-	iptables -A OUTPUT -o lo -j ACCEPT
+		# Allow established and related traffic so active SSH sessions are never dropped.
+		"$iptables" -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 
-	# Accept anything from/to loopback interface in IPv6.
-	ip6tables -A INPUT -i lo -j ACCEPT
-	ip6tables -A OUTPUT -o lo -j ACCEPT
+		# Allow ICMP / ICMPv6 for path MTU discovery and neighbor discovery.
+		if test "$iptables" = "iptables"; then
+			"$iptables" -A INPUT -p icmp -j ACCEPT
+		else
+			"$iptables" -A INPUT -p icmpv6 -j ACCEPT
 
-	# This allows ongoing connections (e.g., an active SSH session) to continue.
-	# RELATED: packets starting a new connection related to an existing one (e.g. FTP data transfer).
-	# ESTABLISHED: packets part of an already existing connection.
-	iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-	ip6tables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+			# Allow DHCPv6 client replies.
+			"$iptables" -A INPUT -p udp --dport 546 -j ACCEPT
+		fi
 
-	# Allow ICMP calls in both IPv4 and IPv6 for proper network operation (see http://shouldiblockicmp.com).
-	iptables -A INPUT -p icmp -j ACCEPT
-	ip6tables -A INPUT -p icmpv6 -j ACCEPT
+		# Allow public HTTP, HTTPS, and custom SSH port.
+		"$iptables" -A INPUT -p tcp --dport 80 -j ACCEPT
+		"$iptables" -A INPUT -p tcp --dport 443 -j ACCEPT
+		"$iptables" -A INPUT -p tcp --dport 822 -j ACCEPT
 
-	# Allow receiving DHCPv6 server replies.
-	ip6tables -A INPUT -p udp --dport 546 -j ACCEPT
+		# Default-deny inbound traffic to the host.
+		"$iptables" -A INPUT -j DROP
+	done
 
-	# Allow dockerd communication in IPv4.
-	# Port 2375 is the default unencrypted Docker daemon port.
-	# This rule restricts access to localhost (127.0.0.1) for security.
-	iptables -A INPUT -s 127.0.0.1 -p tcp --dport 2375 -j ACCEPT
+	# Pre-create DOCKER-USER so we can harden container port exposure before Docker starts.
+	# Blocks external access to published container ports (-p 8080:80) unless bound to localhost or routed through a reverse proxy, while allowing container-to-internet and established replies.
+	# ip6tables parity isn't needed as long as Docker isn't using IPv6.
+	iptables -N DOCKER-USER
+	
+	# Allow established and related traffic.
+	iptables -A DOCKER-USER -m conntrack --ctstate RELATED,ESTABLISHED -j RETURN
 
-	# Similar to IPv4, but for the IPv6 loopback address (::1).
-	ip6tables -A INPUT -s ::1 -p tcp --dport 2375 -j ACCEPT
+	# Allow traffic from the default Docker bridge network (docker0).
+	iptables -A DOCKER-USER -i docker0 -j RETURN
 
-	# Port 80 for HTTP, 443 for HTTPS, and 822 for SSH (custom port).
-	iptables -A INPUT -p tcp --dport 80 -j ACCEPT
-	iptables -A INPUT -p tcp --dport 443 -j ACCEPT
-	iptables -A INPUT -p tcp --dport 822 -j ACCEPT
+	# Allow traffic from custom Docker bridge networks.
+	iptables -A DOCKER-USER -i br-+ -j RETURN
 
-	# Allow incoming traffic for HTTP, HTTPS and SSH (custom port) in IPv6.
-	ip6tables -A INPUT -p tcp --dport 80 -j ACCEPT
-	ip6tables -A INPUT -p tcp --dport 443 -j ACCEPT
-	ip6tables -A INPUT -p tcp --dport 822 -j ACCEPT
+	# Allow traffic to public HTTP and HTTPS ports.
+	iptables -A DOCKER-USER -p tcp -m multiport --dports 80,443 -j RETURN
 
-	# Logs dropped packets to help with debugging firewall rules.
-	# --log-tcp-options: log TCP header options.
-	# --log-prefix: add a prefix to log messages for easier identification.
-	iptables -A INPUT -j LOG --log-tcp-options --log-prefix "iptables: "
-	iptables -A FORWARD -j LOG --log-tcp-options --log-prefix "iptables: "
-	ip6tables -A INPUT -j LOG --log-tcp-options --log-prefix "ip6tables: "
-	ip6tables -A FORWARD -j LOG --log-tcp-options --log-prefix "ip6tables: "
+	# Drop all other traffic to enforce the rules above.
+	iptables -A DOCKER-USER -j DROP
 
-	# This is the default-deny policy for the INPUT chain.
-	# Any traffic not explicitly allowed by previous rules will be dropped.
-	iptables -A INPUT -j DROP
-	ip6tables -A INPUT -j DROP
+	# Persist iptables configuration BEFORE installing Docker and fail2ban.
+	apt-get install -y iptables-persistent
+	netfilter-persistent save
 
 	# Install common software.
 	# build-essential: basic development tools (compiler, make, etc.).
-	# apt-transport-https: allows APT to use HTTPS repositories.
 	# ca-certificates: common CA certificates for SSL/TLS.
 	# software-properties-common: utilities for managing software repositories (e.g., add-apt-repository).
 	# chrony: for time synchronization.
@@ -255,8 +246,7 @@ initialize() {
 	# vim: text editor.
 	# acl: Access Control List utilities for finer-grained file permissions.
 	# btop: resource monitor for system performance.
-	# iptables-persistent: allows iptables rules to be saved and restored across reboots.
-	apt-get install -y build-essential apt-transport-https ca-certificates software-properties-common chrony git gnupg2 fail2ban unattended-upgrades docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin tmux zsh fish vim acl btop iptables-persistent
+	apt-get install -y build-essential ca-certificates software-properties-common chrony git gnupg2 fail2ban unattended-upgrades docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin tmux zsh fish vim acl btop 
 
 	# Download and run the Starship installer script.
 	fetch https://starship.rs/install.sh | sh -s -- --yes
@@ -282,9 +272,6 @@ initialize() {
 		# Restart the Docker service to apply the new configuration.
 		systemctl restart docker
 	fi
-
-	# Save iptables configuration after changes.
-	netfilter-persistent save
 
 	# apt-get clean: remove downloaded package files (.deb) from the local repository.
 	# apt-get autoremove: remove packages that were automatically installed to satisfy dependencies for other packages and are now no longer needed.
