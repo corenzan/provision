@@ -326,122 +326,135 @@ initialize() {
 	fi
 
 	# Configure the SSH server.
-	# This section hardens the SSH server configuration.
-	# It's applied if the custom port (822) isn't already in the config, implying it hasn't been configured by this script yet.
+	# Design: the only ways in are a publickey shell and sftp. No passwords, and
+	# no forwarding, so there is nothing to pivot through once inside.
+	#
+	# Applied only when the custom port isn't already set, which serves as the
+	# marker that this script hasn't configured sshd yet. On an already
+	# provisioned host, edits to this block have no effect.
 	if ! grep -q "Port 822" /etc/ssh/sshd_config; then
 		put /etc/ssh/sshd_config <<-EOF
-			# We omit ListenAddress so SSHD listens on all interfaces, both IPv4 and IPv6.
+			# ListenAddress is deliberately omitted so sshd listens on all
+			# interfaces, IPv4 and IPv6 alike.
 
-			# Supported HostKey algorithms by order of preference.
-			# These are the private keys the server uses to identify itself to clients.
-			HostKey /etc/ssh/ssh_host_rsa_key
+			# One host key only; see the ssh-keygen call below, which also
+			# replaces whatever keys the image or installer generated.
 			HostKey /etc/ssh/ssh_host_ed25519_key
 
-			# Select the host key algorithms that the server is willing to use for authentication.
-			# Prioritizes modern, secure algorithms like Ed25519 and RSA with SHA2 signatures.
-			# sk- variants are for FIDO/U2F hardware security keys.
-			HostKeyAlgorithms sk-ssh-ed25519-cert-v01@openssh.com,ssh-ed25519-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,sk-ssh-ed25519@openssh.com,ssh-ed25519,rsa-sha2-512,rsa-sha2-256
+			# Host keys offered to clients, ed25519 only, so an RSA key is
+			# never generated or exposed. sk-* is for FIDO/U2F hardware keys.
+			HostKeyAlgorithms sk-ssh-ed25519-cert-v01@openssh.com,ssh-ed25519-cert-v01@openssh.com,sk-ssh-ed25519@openssh.com,ssh-ed25519
 
-			# Select the signature algorithms that the server is willing to use for certificate authority (CA) signatures.
-			# Similar to HostKeyAlgorithms, prioritizing strong algorithms for CA-signed keys.
-			CASignatureAlgorithms sk-ssh-ed25519@openssh.com,ssh-ed25519,rsa-sha2-512,rsa-sha2-256
+			# Signature algorithms accepted from a certificate authority.
+			# Inert until TrustedUserCAKeys points at a CA.
+			CASignatureAlgorithms sk-ssh-ed25519@openssh.com,ssh-ed25519
 
-			# Select the key exchange algorithms that the server is willing to use for GSSAPI (Generic Security Services Application Program Interface) authentication.
-			# GSSAPI is often used for Kerberos authentication. Modern curve-based algorithms are preferred.
-			GSSAPIKexAlgorithms gss-curve25519-sha256-,gss-group16-sha512-
+			# User keys accepted. Ed25519 only: any account still holding an
+			# RSA key cannot log in until ssh-rsa is added here.
+			PubkeyAcceptedAlgorithms sk-ssh-ed25519-cert-v01@openssh.com,ssh-ed25519-cert-v01@openssh.com,sk-ssh-ed25519@openssh.com,ssh-ed25519
 
-			# Select the public key algorithms that the server is willing to accept for user authentication.
-			# Similar to HostKeyAlgorithms, ensuring clients use strong keys.
-			PubkeyAcceptedAlgorithms sk-ssh-ed25519-cert-v01@openssh.com,ssh-ed25519-cert-v01@openssh.com,sk-ssh-ed25519@openssh.com,ssh-ed25519,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-512,rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-256
+			# Post-quantum hybrid KEX first, classical curve25519 as fallback.
+			KexAlgorithms sntrup761x25519-sha512@openssh.com,curve25519-sha256
 
-			# Choose stronger Key Exchange algorithms (KEX).
-			# KEX algorithms are used to agree on a shared secret for the session.
-			# Prioritizes modern, quantum-resistant (sntrup761x25519) and elliptic curve algorithms.
-			KexAlgorithms sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,gss-curve25519-sha256-,diffie-hellman-group16-sha512,gss-group16-sha512-,diffie-hellman-group18-sha512,diffie-hellman-group-exchange-sha256
+			# All AEAD, so integrity comes from the cipher and no MAC list is needed.
+			Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
 
-			# Use modern ciphers for encryption.
-			# Ciphers are the algorithms used for encrypting the data stream.
-			# ChaCha20-Poly1305 and AES-GCM are preferred for their security and performance.
-			Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
-
-			# Use MACs (Message Authentication Codes) with larger tag sizes.
-			# MACs ensure data integrity. ETM (Encrypt-then-MAC) modes are generally preferred.
-			MACs hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,umac-128-etm@openssh.com
-
-			# LogLevel VERBOSE logs user's key fingerprint on login. Needed to have a clear audit track of which key was using to log in.
+			# Logs the fingerprint of the key used, so a login can be traced to a
+			# specific key rather than just a user.
 			LogLevel VERBOSE
 
-			# Don't let users set environment variables via SSH.
+			# Blocks authorized_keys environment= from injecting PATH,
+			# LD_PRELOAD and friends into the session.
 			PermitUserEnvironment no
 
-			# Forwarding to X11 is considered insecure as it can be exploited.
+			# Every forwarding type is off; there is no pivoting path once inside.
+			# X11 is a rich protocol with a poor security record.
 			X11Forwarding no
 
-			# Disable various types of forwarding to reduce attack surface.
-			AllowStreamLocalForwarding no # Disables forwarding of local Unix domain sockets.
-			GatewayPorts no # Prevents remote hosts from connecting to forwarded ports.
-			PermitTunnel no # Disables tun device forwarding.
+			# Blocks reaching local sockets such as docker.sock, which the apps
+			# user can reach given its membership in the docker group.
+			AllowStreamLocalForwarding no
 
-			# Don't verify hostname of the connecting client.
-			# Prevents DNS spoofing attacks and speeds up the process.
+			# Only takes effect while a forwarding is enabled; keeps it bound to
+			# loopback if one is ever turned back on.
+			GatewayPorts no
+
+			# No tunnel devices, so no TUN/TAP based VPN over SSH.
+			PermitTunnel no
+
+			# Off because hostbased authentication is off: the lookup only adds
+			# latency under attacker-controlled PTR records.
 			UseDNS no
 
-			# TCPKeepAlive is not encrypted and can be spoofed. ClientAliveInterval is preferred.
+			# TCPKeepAlive is unencrypted and its packets can be spoofed;
+			# ClientAlive* below run inside the encrypted channel instead.
 			TCPKeepAlive no
 
-			# Disable TCP forwarding.
-			# Reduces attack surface and prevents pivoting.
-			AllowTCPForwarding no
+			# sftp and scp are the only file transfer paths, and scp also needs
+			# this subsystem on modern OpenSSH.
+			Subsystem sftp /usr/lib/openssh/sftp-server
 
-			# Disable agent forwarding.
-			# Agent forwarding can be risky if the server is compromised.
+			# Upstream defaults to yes for both; set explicitly to pin intent.
+			AllowTCPForwarding no
 			AllowAgentForwarding no
 
-			# Forbid root sessions.
+			# Root has no path in at all, not even with a key.
 			PermitRootLogin no
 
-			# Password are insecure.
-			# Enforces key-based authentication, which is much more secure than passwords.
+			# PAM, not just for auth: it is what creates the systemd user session
+			# and applies cgroup, resource and environment setup on login.
+			UsePAM yes
+
+			# Publickey is required and sufficient. To add a second factor later,
+			# append ,keyboard-interactive here rather than re-enabling passwords.
+			AuthenticationMethods publickey
+
+			# Redundant with the line above, kept to cover edge cases.
 			PasswordAuthentication no
 
-			# Allow users in 'remote' group to connect.
-			# To add and remove users from the group, respectively:
+			# With UsePAM yes, keyboard-interactive is a PAM path that could
+			# bypass the publickey-only requirement.
+			KbdInteractiveAuthentication no
+
+			# Only members of the remote group get in, even with a valid key.
+			# Combined with Port 822 below, this is a lockout risk: verify group
+			# membership and keep console access until a new session is proven.
 			# - usermod -aG remote <username>
 			# - gpasswd -d <username> remote
 			AllowGroups remote
 
-			# Drop idle clients.
-			# ClientAliveInterval: sends a keep-alive message every 60 seconds.
-			# ClientAliveCountMax: disconnects after 30 unanswered keep-alive messages (30*60 = 30 minutes).
+			# Drops dead clients after ~10 minutes of unanswered keep-alives,
+			# freeing a slot that would otherwise sit reserved.
 			ClientAliveInterval 60
-			ClientAliveCountMax 30
+			ClientAliveCountMax 10
 
-			# Sets a timeout for authentication to complete.
-			LoginGraceTime 10
+			# Caps how long an unauthenticated connection can sit, so a slow
+			# handshake cannot hold a slot indefinitely.
+			LoginGraceTime 60
 
-			# Limits the number of authentication attempts per connection to 3.
+			# Halves the per-connection brute-force rate at negligible cost.
 			MaxAuthTries 3
 
-			# Maximum number of open shell, login or subsystem (e.g. sftp) sessions permitted per network connection.
-			MaxSessions 2
+			# One connection is enough for normal use; this bounds multiplexing.
+			MaxSessions 10
 
-			# Allow only one authentication at a time.
-			# MaxStartups: maximum number of concurrent unauthenticated connections.
-			# The default is "10:30:100", this is more restrictive.
-			MaxStartups 2
+			# At 10 pending unauthenticated connections, start dropping 30% of
+			# new ones, hard cap 60. PerSourceMaxStartups keeps a single host
+			# from consuming the whole global pool.
+			MaxStartups 10:30:60
+			PerSourceMaxStartups 3
 
-			# DebianBanner no: disable display of the Debian-specific banner.
-			# PrintMotd no: disable display of the message of the day (MOTD).
+			# Don't advertise the distro or version on connect.
 			DebianBanner no
+
+			# MOTD is noise on the wire; login messages belong to the shell or the
+			# authentication flow, not to sshd.
 			PrintMotd no
 
-			# Using a non-standard port (822 instead of 22) can help reduce exposure to automated attacks.
+			# A non-standard port only reduces automated scan noise. The socket
+			# unit below is what actually makes sshd listen here, and both have
+			# to agree.
 			Port 822
-
-			# Skip permission requirements on the user's home directory so it doesn't conflict with our ACLs rules.
-			# Warning! You should still ensure proper permissions on the .ssh directory and its contents.
-			# e.g. chmod 700 ~/.ssh; chmod 600 ~/.ssh/*
-			StrictModes no
 		EOF
 	fi
 
@@ -455,16 +468,29 @@ initialize() {
 	fi
 
 	# Re-create existing host keys.
-	# This ensures strong, fresh host keys are used.
-	# -t rsa -b 4096: generates a 4096-bit RSA key.
-	# -t ed25519: generates an Ed25519 key (modern, fast, and secure).
+	# -t ed25519: only key type generated; the sshd_config above advertises
+	# nothing else, so an RSA host key would just be dead weight.
 	# -N "": sets an empty passphrase for the key.
 	rm -f /etc/ssh/ssh_host_*
-	ssh-keygen -t rsa -b 4096 -f /etc/ssh/ssh_host_rsa_key -N ""
 	ssh-keygen -t ed25519 -f /etc/ssh/ssh_host_ed25519_key -N ""
 
-	# Apply the new SSH configuration and host keys.
-	systemctl restart ssh
+    # Since Ubuntu Server 24.04, SSH server uses a socket configuration and doesn't honor the Port setting in sshd_config.
+    if ! test -f /etc/systemd/system/ssh.socket.d/port.conf; then
+        mkdir -p /etc/systemd/system/ssh.socket.d
+        put /etc/systemd/system/ssh.socket.d/port.conf <<-EOF
+            [Socket]
+            ListenStream=
+            ListenStream=822
+        EOF
+    fi
+
+	# Validate the new SSH configuration before applying it.
+	if sshd -t; then
+    	systemctl daemon-reload
+    	systemctl restart ssh.socket
+	else
+		echo "[!] sshd_config validation failed, skipped restart to prevent lock-out." >&2
+	fi
 
 	# Allocate swap space equivalent to the available memory up to 16GB.
 	# Swap space is used when the system runs out of physical RAM.
