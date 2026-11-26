@@ -222,7 +222,8 @@ initialize() {
 	iptables -A DOCKER-USER -i br-+ -j RETURN
 
 	# Allow traffic to public HTTP and HTTPS ports.
-	iptables -A DOCKER-USER -p tcp -m multiport --dports 80,443 -j RETURN
+	iptables -A DOCKER-USER -p tcp --ctorigdstport 80 -j RETURN
+	iptables -A DOCKER-USER -p tcp --ctorigdstport 443 -j RETURN
 
 	# Drop all other traffic to enforce the rules above.
 	iptables -A DOCKER-USER -j DROP
