@@ -40,7 +40,7 @@ append() {
 put() {
 	temp="/tmp/$(random)"
 	if test -f "$1"; then
-	    # cp -p preserves the original mode, ownership and timestamps.
+		# cp -p preserves the original mode, ownership and timestamps.
 		cp -p "$1" "$temp"
 	fi
 	cat >"$temp"
@@ -475,20 +475,20 @@ initialize() {
 	rm -f /etc/ssh/ssh_host_*
 	ssh-keygen -t ed25519 -f /etc/ssh/ssh_host_ed25519_key -N ""
 
-    # Since Ubuntu Server 24.04, SSH server uses a socket configuration and doesn't honor the Port setting in sshd_config.
-    if ! test -f /etc/systemd/system/ssh.socket.d/port.conf; then
-        mkdir -p /etc/systemd/system/ssh.socket.d
-        put /etc/systemd/system/ssh.socket.d/port.conf <<-EOF
-            [Socket]
-            ListenStream=
-            ListenStream=822
-        EOF
-    fi
+	# Since Ubuntu Server 24.04, SSH server uses a socket configuration and doesn't honor the Port setting in sshd_config.
+	if ! test -f /etc/systemd/system/ssh.socket.d/port.conf; then
+		mkdir -p /etc/systemd/system/ssh.socket.d
+		put /etc/systemd/system/ssh.socket.d/port.conf <<-EOF
+			[Socket]
+			ListenStream=
+			ListenStream=822
+		EOF
+	fi
 
 	# Validate the new SSH configuration before applying it.
 	if sshd -t; then
-    	systemctl daemon-reload
-    	systemctl restart ssh.socket
+		systemctl daemon-reload
+		systemctl restart ssh.socket
 	else
 		echo "[!] sshd_config validation failed, skipped restart to prevent lock-out." >&2
 	fi
