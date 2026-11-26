@@ -102,23 +102,23 @@ initialize() {
 	fi
 
 	# Check for required software.
-	depends curl lsb_release update-locale locale-gen iptables ip6tables
+	depends curl update-locale locale-gen iptables ip6tables
 
-	# Get distro information.
-	# lsb_release -is: print distributor ID (e.g., Ubuntu, Debian) in lowercase.
-	# lsb_release -cs: print codename (e.g., focal, buster).
+	# Get distro information from os-release(5).
+	# ID: distributor ID, always lowercase (e.g., ubuntu, debian).
+	# VERSION_CODENAME: codename (e.g., focal, bookworm).
 	# dpkg --print-architecture: print the system architecture (e.g., amd64, arm64).
-	distro_id="$(lsb_release -is | tr '[:upper:]' '[:lower:]')"
-	distro_name="$(lsb_release -cs)"
+	. /etc/os-release
 	arch="$(dpkg --print-architecture)"
 
 	# Check distro compatibility.
-	test "$distro_id" = "ubuntu" || test "$distro_id" = "debian" || fatal "Distro '$distro_id' isn't supported."
+	test "${ID:-}" = "ubuntu" || test "${ID:-}" = "debian" || fatal "Distro '${ID:-}' isn't supported."
+	test -n "${VERSION_CODENAME:-}" || fatal "Couldn't determine the distro codename. See os-release(5)."
 
 	# Install the official Docker GPG key.
 	if ! test -f /etc/apt/keyrings/docker.asc; then
 		install -m 0755 -d /etc/apt/keyrings
-		fetch https://download.docker.com/linux/$distro_id/gpg | put /etc/apt/keyrings/docker.asc
+		fetch "https://download.docker.com/linux/$ID/gpg" | put /etc/apt/keyrings/docker.asc
 		chmod a+r /etc/apt/keyrings/docker.asc
 	fi
 
@@ -126,8 +126,8 @@ initialize() {
 	if ! test -f /etc/apt/sources.list.d/docker.sources; then
 		put /etc/apt/sources.list.d/docker.sources <<-EOF
 			Types: deb
-			URIs: https://download.docker.com/linux/$distro_id
-			Suites: $distro_name
+			URIs: https://download.docker.com/linux/$ID
+			Suites: $VERSION_CODENAME
 			Components: stable
 			Architectures: $arch
 			Signed-By: /etc/apt/keyrings/docker.asc
