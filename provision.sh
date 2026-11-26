@@ -146,15 +146,16 @@ initialize() {
 	apt-get update
 	apt-get upgrade -y
 
-	# Set locale/encoding.
-	export LANGUAGE=en_US.UTF-8
-	export LC_ALL=en_US.UTF-8
-
-	# Ensures the chosen locale is available and set system-wide.
-	if ! locale -a | grep -q "$LANGUAGE"; then
-		update-locale "LANGUAGE=$LANGUAGE" "LC_ALL=$LANGUAGE"
-		locale-gen "$LANGUAGE"
+	# Ensure the en_US.UTF-8 locale is generated.
+	if ! locale -a | grep -qi '^en_US\.utf-\?8$'; then
+		locale-gen en_US.UTF-8
 	fi
+
+	# Update the system's default locale if it isn't already set to en_US.UTF-8.
+	if ! grep -q '^LANG=en_US\.UTF-8$' /etc/default/locale 2>/dev/null; then
+		update-locale LANG=en_US.UTF-8
+	fi
+	export LANG=en_US.UTF-8
 
 	# Set the system's static hostname.
 	if ! test "$(hostnamectl --static)" = "$hostname"; then
