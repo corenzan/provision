@@ -496,7 +496,7 @@ initialize() {
 
 	# Allocate swap space equivalent to the available memory up to 16GB.
 	# Swap space is used when the system runs out of physical RAM.
-	if ! test -f /swapfile; then
+	if test -z "$(swapon --show --noheadings)"; then
 		# Get available RAM in MB.
 		ram=$(free -m | awk '/^Mem:/{print $2}')
 
@@ -504,37 +504,37 @@ initialize() {
 		test "$ram" -lt 16384 || ram=16384
 
 		# Try to use fallocate if available (much faster), otherwise use dd.
-		if command -v fallocate >/dev/null 2>&1; then
-			fallocate -l "${ram}M" /swapfile
-		else
-			dd if=/dev/zero of=/swapfile bs=1M count="$ram" status=progress
+		if ! fallocate -l "${ram}M" /swap.img; then
+			truncate -s 0 /swap.img
+			chattr +C /swap.img
+			dd if=/dev/zero of=/swap.img bs=1M count="$ram" status=progress
 		fi
 
 		# Set restrictive permissions on the swap file.
-		chmod 600 /swapfile
+		chmod 600 /swap.img
 
 		# Set up the swap file as a Linux swap area.
-		mkswap /swapfile
+		mkswap /swap.img
 
 		# Enable the swap file for immediate use.
-		swapon /swapfile
+		swapon /swap.img
 
 		# Add an entry to /etc/fstab to make the swap file persistent across reboots.
 		append /etc/fstab <<-EOF
-			/swapfile none swap sw 0 0
+			/swap.img none swap sw 0 0
 		EOF
 	fi
 
 	# Reduce how likely the system is to swap memory.
 	# Swappiness ranges from 0 (avoid swapping as much as possible) to 100 (will swap aggressively).
 	# A value of 10 is a common recommendation for servers, prioritizing keeping applications in RAM.
-	if ! grep -q "vm.swappiness" /etc/sysctl.conf; then
-		append /etc/sysctl.conf <<-EOF
+	if ! test -f /etc/sysctl.d/99-swappiness.conf; then
+		put /etc/sysctl.d/99-swappiness.conf <<-EOF
 			vm.swappiness = 10
 		EOF
 
 		# Apply sysctl changes without rebooting.
-		sysctl -p
+		sysctl --system
 	fi
 
 	echo "Done."
