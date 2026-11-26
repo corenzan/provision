@@ -7,7 +7,6 @@
 This script will:
 
 - Change configurations that might break stuff, lock you out of access, or otherwise compromise the security or stability of your server.
-- Output secrets in plain text and save them to disk.
 
 ⚠️ You MUST read it in full and understand exactly what it does before proceeding.
 
@@ -22,11 +21,10 @@ Here's an overview of what it'll do:
 - Install Docker, fail2ban, and several other software.
 - Harden SSH configuration and switch to an alternative port (822).
 - Configure the firewall to block any incoming traffic except on selected ports (822, 443, 80) on both IPv4 and IPv6.
-- Change the root password.
 - Create a dedicated user and directory for project deployment, with proper ACL and permissions so other users can manage it.
 - Allow passwordless sudo.
 - Create swap space equivalent to the available memory, up to 16GB.
-- Register a new system administrator user with a strong random password and SSH access.
+- Register a new system administrator user with SSH access and no password.
 - Install opinionated administrative tools.
 
 Some options are available via command flags. See `-h`.

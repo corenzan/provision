@@ -9,11 +9,6 @@
 # Halt on errors and undeclared variables.
 set -ue
 
-# Generate a random string of 64 characters.
-random() {
-	LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 64
-}
-
 # Save the original file, if it exists.
 # cp -p preserves the file's mode, ownership, and timestamps.
 backup() {
@@ -298,18 +293,10 @@ initialize() {
 		groupadd remote
 	fi
 
-	# Generate a random password for the root user.
-	# It's good practice to change default/known passwords, even if root login via SSH is disabled.
-	# tee /dev/tty: print out the credentials to the terminal while piping to chpasswd.
-	echo "root:$(random)" | tee /dev/tty | chpasswd
-
 	# A dedicated user for running applications, separate from administrative users.
 	if ! id apps >/dev/null 2>&1; then
 		# -m creates the home directory.
 		useradd -m apps
-
-		# Set a random password for the 'apps' user.
-		echo "apps:$(random)" | tee /dev/tty | chpasswd
 
 		# Allow 'apps' user to access SSH and Docker.
 		usermod -aG remote,docker apps
@@ -637,12 +624,9 @@ register() {
 	# -d /home/$username: set the user's home directory.
 	# -m: create the home directory if it doesn't exist.
 	# -s /bin/bash: set the default login shell to bash.
+	# No password is set, so the account stays locked and is only reachable
+	# with the public key added below.
 	useradd -d "/home/$username" -m -s /bin/bash "$username"
-
-	# Set a random password for the new user.
-	# While SSH key authentication is enforced, a password is set for completeness and local console access.
-	# tee /dev/fd/1: print out the credentials while allowing redirection.
-	echo "$username:$(random)" | tee /dev/fd/1 | chpasswd
 
 	# Add the user to relevant groups:
 	# sudo: allows running commands with root privileges (via sudo).
