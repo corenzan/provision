@@ -246,7 +246,14 @@ initialize() {
 	# vim: text editor.
 	# acl: Access Control List utilities for finer-grained file permissions.
 	# btop: resource monitor for system performance.
-	apt-get install -y build-essential ca-certificates software-properties-common chrony git gnupg2 fail2ban unattended-upgrades docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin tmux zsh fish vim acl btop 
+	apt-get install -y build-essential ca-certificates software-properties-common chrony git gnupg2 fail2ban unattended-upgrades docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin tmux zsh fish vim acl btop
+
+	# Configure fail2ban to watch our custom SSH port.
+	put /etc/fail2ban/jail.d/sshd.local <<-EOF
+		[sshd]
+		port = 822
+	EOF
+	systemctl restart fail2ban
 
 	# Download and run the Starship installer script.
 	fetch https://starship.rs/install.sh | sh -s -- --yes
@@ -559,7 +566,7 @@ ports() {
 		fi
 
 		# Find the line number of the DROP rule (if any).
-		n=$(iptables -L INPUT --line-numbers | awk '/DROP/ {print $1; exit}')
+		n=$(iptables -L INPUT -n --line-numbers | awk '/DROP/ {print $1; exit}')
 		if test -n "$n"; then
 			# Insert before DROP (as second to last rule).
 			iptables -I INPUT "$n" -p "$protocol" --dport "$port" -j ACCEPT
@@ -569,7 +576,7 @@ ports() {
 		fi
 
 		# Repeat for IPv6.
-		n=$(ip6tables -L INPUT --line-numbers | awk '/DROP/ {print $1; exit}')
+		n=$(ip6tables -L INPUT -n --line-numbers | awk '/DROP/ {print $1; exit}')
 		if test -n "$n"; then
 			ip6tables -I INPUT "$n" -p "$protocol" --dport "$port" -j ACCEPT
 		else
