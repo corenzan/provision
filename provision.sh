@@ -1,9 +1,11 @@
-#!/usr/bin/env sh
-
-# Provision is a POSIX-compliant shell script that helps with
+#!/usr/bin/env bash
+#
+# Provision is an initialization script in Bash to help with
 # the initial configuration required for a production-grade
 # Debian-based server to host websites and applications.
+#
 # Created by Arthur <arthur@corenzan.com>, released on public domain.
+#
 # More at https://github.com/corenzan/provision.
 
 # Halt on errors and undeclared variables.
@@ -63,7 +65,7 @@ depends() {
 # -S: show error messages if the request fails.
 # --max-time 10: set a time limit of 10 seconds for the request.
 fetch() {
-	curl -fsSL --max-time 10 "$@"
+	curl -fsSL --max-time 30 "$@"
 }
 
 # Print an error message and exit.
@@ -85,12 +87,11 @@ manual() {
 		    -h                          Print out this manual.
 		    -x                          Print out each command for debugging. Optional.
 		    -l <file>                   Log output to file. Defaults to provision-<timestamp>.log. Use '-' to disable.
-		    -i                          Initialize server configuration. Optional.
+		    -i                          Initialize server configuration. Implies -r. Optional.
 		    -r                          Create the administrator given by -u. Optional.
 		    -n <hostname>               Server's hostname. Required if -i is set.
 		    -u <username>               Administrator's username. Required if -r is set.
 		    -k <public key>             File path or URL to administrator's public key. Required if -r is set.
-		    -p <protocol>:<port>[,...]  Allow incoming traffic on additional ports, separated by commas.
 
 		LEGAL
 		    Created by Arthur <arthur@corenzan.com>. Licensed under public domain.
@@ -114,10 +115,9 @@ initialize() {
 	# VERSION_CODENAME: codename (e.g., focal, bookworm).
 	# dpkg --print-architecture: print the system architecture (e.g., amd64, arm64).
 	. /etc/os-release
-	arch="$(dpkg --print-architecture)"
 
 	# Check distro compatibility.
-	test "${ID:-}" = "ubuntu" || test "${ID:-}" = "debian" || fatal "Distro '${ID:-}' isn't supported."
+	test "${ID:-}" = "debian" || test "${ID_LIKE:-}" = "debian" || fatal "Distro '${ID:-}' isn't supported."
 	test -n "${VERSION_CODENAME:-}" || fatal "Couldn't determine the distro codename. See os-release(5)."
 
 	# Install the official Docker GPG key.
@@ -134,7 +134,7 @@ initialize() {
 			URIs: https://download.docker.com/linux/$ID
 			Suites: $VERSION_CODENAME
 			Components: stable
-			Architectures: $arch
+			Architectures: $(dpkg --print-architecture)
 			Signed-By: /etc/apt/keyrings/docker.asc
 		EOF
 	fi
@@ -211,7 +211,7 @@ initialize() {
 	# Blocks external access to published container ports (-p 8080:80) unless bound to localhost or routed through a reverse proxy, while allowing container-to-internet and established replies.
 	# ip6tables parity isn't needed as long as Docker isn't using IPv6.
 	iptables -N DOCKER-USER
-	
+
 	# Allow established and related traffic.
 	iptables -A DOCKER-USER -m conntrack --ctstate RELATED,ESTABLISHED -j RETURN
 
@@ -235,7 +235,6 @@ initialize() {
 	# Install common software.
 	# build-essential: basic development tools (compiler, make, etc.).
 	# ca-certificates: common CA certificates for SSL/TLS.
-	# software-properties-common: utilities for managing software repositories (e.g., add-apt-repository).
 	# chrony: for time synchronization.
 	# git: version control system.
 	# gnupg2: GNU Privacy Guard for encryption and signing.
@@ -252,7 +251,7 @@ initialize() {
 	# vim: text editor.
 	# acl: Access Control List utilities for finer-grained file permissions.
 	# btop: resource monitor for system performance.
-	apt-get install -y build-essential ca-certificates software-properties-common chrony git gnupg2 fail2ban unattended-upgrades docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin tmux zsh fish vim acl btop
+	apt-get install -y build-essential ca-certificates chrony git gnupg2 fail2ban unattended-upgrades docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin tmux zsh fish vim acl btop
 
 	# Configure fail2ban to watch our custom SSH port.
 	put /etc/fail2ban/jail.d/sshd.local <<-EOF
@@ -487,12 +486,9 @@ initialize() {
 	fi
 
 	# Validate the new SSH configuration before applying it.
-	if sshd -t; then
-		systemctl daemon-reload
-		systemctl restart ssh.socket
-	else
-		echo "[!] sshd_config validation failed, skipped restart to prevent lock-out." >&2
-	fi
+	sshd -t
+	systemctl daemon-reload
+	systemctl restart ssh.socket
 
 	# Allocate swap space equivalent to the available memory up to 16GB.
 	# Swap space is used when the system runs out of physical RAM.
@@ -536,65 +532,11 @@ initialize() {
 		# Apply sysctl changes without rebooting.
 		sysctl --system
 	fi
-
-	echo "Done."
 }
 
-ports() {
-	# Require privilege, i.e. sudo.
-	test "$(id -u)" -eq 0 || fatal "This command must be ran as root."
-
-	# Test if ports were specified.
-	if test -z "$ports"; then
-		fatal "No ports specified. See -h for help."
-	fi
-
-	# Check for required software.
-	depends iptables ip6tables netfilter-persistent
-
-	echo "$ports" | tr ',' '\n' | while read -r arg; do
-		# Extracted protocol (if specified).
-		protocol="${arg%:*}"
-		# If there isn't a colon, protocol will be empty.
-		if test -z "$protocol"; then
-			fatal "You must specify a protocol. e.g. tcp:80 or udp:53. See -h for help."
-		fi
-
-		# Extracted port number.
-		port="${arg#*:}"
-		# Delete all digits in $port. If it isn't empty, it's invalid.
-		if test -n "$(echo "$port" | tr -d '0-9')"; then
-			fatal "Port '$port' should be only digits."
-		fi
-		# Test port range.
-		if test "$port" -lt 1 || test "$port" -gt 65535; then
-			fatal "Port '$port' is out of range. Must be between 1-65535."
-		fi
-
-		# Find the line number of the DROP rule (if any).
-		n=$(iptables -L INPUT -n --line-numbers | awk '/DROP/ {print $1; exit}')
-		if test -n "$n"; then
-			# Insert before DROP (as second to last rule).
-			iptables -I INPUT "$n" -p "$protocol" --dport "$port" -j ACCEPT
-		else
-			# Otherwise append.
-			iptables -A INPUT -p "$protocol" --dport "$port" -j ACCEPT
-		fi
-
-		# Repeat for IPv6.
-		n=$(ip6tables -L INPUT -n --line-numbers | awk '/DROP/ {print $1; exit}')
-		if test -n "$n"; then
-			ip6tables -I INPUT "$n" -p "$protocol" --dport "$port" -j ACCEPT
-		else
-			ip6tables -A INPUT -p "$protocol" --dport "$port" -j ACCEPT
-		fi
-	done
-
-	# Save iptables configuration after changes.
-	netfilter-persistent save
-}
-
-register() {
+# Validate everything register() needs, without changing the system, so a
+# bad option or unreachable key fails before initialize() or register() runs.
+pre_register() {
 	# Require privilege, i.e. sudo.
 	test "$(id -u)" -eq 0 || fatal "This command must be ran as root."
 
@@ -611,7 +553,7 @@ register() {
 	# Check for required non-standard commands.
 	depends curl
 
-	# Read public key from file or URL.
+	# Check the public key is obtainable, resolving it from a file or URL.
 	# The construct "${key#http}" removes "http" from the beginning of $key.
 	# If it's different from the original, it means $key started with "http".
 	# If it's a regular file (-f), we just read its contents.
@@ -623,6 +565,12 @@ register() {
 		fatal "Public key could not be read from '$key'."
 	fi
 
+	if ! cat "$key" | ssh-keygen -lf - >/dev/null 2>&1; then
+	    fatal "Public key is invalid."
+	fi
+}
+
+register() {
 	# Create the new user.
 	# -d /home/$username: set the user's home directory.
 	# -m: create the home directory if it doesn't exist.
@@ -665,14 +613,15 @@ main() {
 		fatal "No command option was specified: -i or -r. See -h for help."
 	fi
 
+	# If bit 2 is set, the register command was requested. Validate its
+	# inputs first, so it fails before either command makes any changes.
+	if test $((mode & 2)) -ne 0; then
+		pre_register
+	fi
+
 	# If bit 1 is set, the initialize command was requested.
 	if test $((mode & 1)) -ne 0; then
 		initialize
-	fi
-
-	# If bit 4 is set, the ports command was requested.
-	if test $((mode & 8)) -ne 0; then
-		ports
 	fi
 
 	# If bit 2 is set, the register command was requested.
@@ -695,11 +644,10 @@ log="provision-$now.log"
 hostname=""
 username=""
 key=""
-ports=""
 mode=0
 
 # Parse global arguments.
-while getopts ":hxl:irn:u:k:p:" option; do
+while getopts ":hxl:irn:u:k:" option; do
 	case "$option" in
 	h)
 		manual
@@ -712,7 +660,8 @@ while getopts ":hxl:irn:u:k:p:" option; do
 		log="$OPTARG"
 		;;
 	i)
-		mode=$((mode | 1))
+		# Initialize implies register.
+		mode=$((mode | 1 | 2))
 		;;
 	n)
 		hostname="$OPTARG"
@@ -725,10 +674,6 @@ while getopts ":hxl:irn:u:k:p:" option; do
 		;;
 	k)
 		key="$OPTARG"
-		;;
-	p)
-		mode=$((mode | 8))
-		ports="$OPTARG"
 		;;
 	:)
 		fatal "Missing argument for option -$OPTARG."
