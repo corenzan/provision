@@ -286,7 +286,7 @@ initialize() {
 	apt-get autoremove -y
 
 	# The group 'remote' will be used to control SSH access.
-	if ! id -g remote >/dev/null 2>&1; then
+	if ! getent group remote >/dev/null 2>&1; then
 		groupadd remote
 	fi
 
