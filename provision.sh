@@ -232,6 +232,7 @@ initialize() {
 	# chrony: for time synchronization.
 	# git: version control system.
 	# gnupg2: GNU Privacy Guard for encryption and signing.
+	# jq: command-line JSON processor.
 	# fail2ban: intrusion prevention software that monitors log files and bans IPs showing malicious signs.
 	# unattended-upgrades: automatically installs security updates.
 	# docker-ce: Docker Community Edition.
@@ -245,7 +246,7 @@ initialize() {
 	# vim: text editor.
 	# acl: Access Control List utilities for finer-grained file permissions.
 	# btop: resource monitor for system performance.
-	apt-get install -y build-essential ca-certificates chrony git gnupg2 fail2ban unattended-upgrades docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin tmux zsh fish vim acl btop
+	apt-get install -y build-essential ca-certificates chrony git gnupg2 jq fail2ban unattended-upgrades docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin tmux zsh fish vim acl btop
 
 	# Configure fail2ban to watch our custom SSH port.
 	put /etc/fail2ban/jail.d/sshd.local <<-EOF
@@ -257,27 +258,28 @@ initialize() {
 	# Download and run the Starship installer script.
 	fetch https://starship.rs/install.sh | sh -s -- --yes
 
-	# Write custom Docker configuration.
+	# Configure Docker.
 	# https://docs.docker.com/engine/reference/commandline/dockerd/
 	# live-restore: allows containers to keep running during daemon upgrades or restarts.
 	# log-driver: specifies the log driver for containers.
 	# max-size: maximum size of a log file before it's rotated.
 	# max-file: maximum number of log files to keep.
-	if ! test -f /etc/docker/daemon.json; then
-		put /etc/docker/daemon.json <<-EOF
-			{
-			  "live-restore": true,
-			  "log-driver": "json-file",
-			  "log-opts": {
-			    "max-size": "16m",
-			    "max-file": "4"
-			  }
-			}
-		EOF
+	touch /etc/docker/daemon.json
+	temp="/etc/docker/$(random)"
+	jq -s 'reduce .[] as $f ({}; . * $f)' /etc/docker/daemon.json - >"$temp" <<-EOF
+		{
+		  "live-restore": true,
+		  "log-driver": "json-file",
+		  "log-opts": {
+		    "max-size": "16m",
+		    "max-file": "4"
+		  }
+		}
+	EOF
+	mv "$temp" /etc/docker/daemon.json
 
-		# Restart the Docker service to apply the new configuration.
-		systemctl restart docker
-	fi
+	# Restart the Docker service to apply the new configuration.
+	systemctl restart docker
 
 	# apt-get clean: remove downloaded package files (.deb) from the local repository.
 	# apt-get autoremove: remove packages that were automatically installed to satisfy dependencies for other packages and are now no longer needed.
