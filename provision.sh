@@ -38,7 +38,7 @@ append() {
 }
 
 # Safely replace file contents.
-# We use a temporary file to avoid corrupting the file in case of error.
+
 put() {
 	backup "$1"
 	rm -f "$1"
