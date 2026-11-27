@@ -18,7 +18,7 @@ random() {
 
 # Print an error message and exit.
 fatal() {
-    printf "provision: %s\n" "$@" >&2
+	printf "provision: %s\n" "$@" >&2
 	exit 1
 }
 
@@ -269,7 +269,6 @@ initialize() {
 	jq -s 'reduce .[] as $f ({}; . * $f)' /etc/docker/daemon.json - >"$temp" <<-EOF
 		{
 		  "live-restore": true,
-		  "log-driver": "json-file",
 		  "log-opts": {
 		    "max-size": "16m",
 		    "max-file": "4"
