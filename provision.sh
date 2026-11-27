@@ -559,7 +559,7 @@ pre_register() {
 		fatal "Public key could not be read from '$key'."
 	fi
 
-	if ! printf "$key" | ssh-keygen -lf - >/dev/null 2>&1; then
+	if ! printf "%s" "$key" | ssh-keygen -lf - >/dev/null 2>&1; then
 	    fatal "Public key is invalid."
 	fi
 }
