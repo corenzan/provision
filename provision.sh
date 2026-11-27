@@ -40,14 +40,9 @@ append() {
 # Safely replace file contents.
 # We use a temporary file to avoid corrupting the file in case of error.
 put() {
-	temp="/tmp/$(random)"
-	if test -f "$1"; then
-		# cp -p preserves the original mode, ownership and timestamps.
-		cp -p "$1" "$temp"
-	fi
-	cat >"$temp"
 	backup "$1"
-	mv "$temp" "$1"
+	rm -f "$1"
+	append "$1"
 }
 
 # Check for required dependencies.
