@@ -16,6 +16,12 @@ random() {
 	LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c ${1:-8}
 }
 
+# Print an error message and exit.
+fatal() {
+    printf "provision: %s\n" "$@" >&2
+	exit 1
+}
+
 # Save the original file, if it exists.
 # cp -p preserves the file's mode, ownership, and timestamps.
 backup() {
@@ -61,12 +67,6 @@ depends() {
 # --max-time 10: set a time limit of 10 seconds for the request.
 fetch() {
 	curl -fsSL --max-time 30 "$@"
-}
-
-# Print an error message and exit.
-fatal() {
-	echo "provision: $1" >&2
-	exit 1
 }
 
 # Print the manual.
