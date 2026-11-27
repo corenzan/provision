@@ -44,7 +44,6 @@ append() {
 }
 
 # Safely replace file contents.
-
 put() {
 	backup "$1"
 	rm -f "$1"
@@ -64,7 +63,7 @@ depends() {
 # -f: fail silently on server errors.
 # -s: silent mode.
 # -S: show error messages if the request fails.
-# --max-time 10: set a time limit of 10 seconds for the request.
+# --max-time: set a time limit for the request.
 fetch() {
 	curl -fsSL --max-time 30 "$@"
 }
